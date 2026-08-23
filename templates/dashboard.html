@@ -16,12 +16,22 @@
         <div class="spotlight-badge">👑 Nearest Birthday Spotlight</div>
         
         <div class="nearest-bday-grid">
-            <div class="nearest-avatar-wrapper">
+            <div class="nearest-avatar-wrapper" style="position: relative;">
                 {% if nearest_bday.profile_pic %}
                 <img src="{{ nearest_bday.profile_pic }}" alt="{{ nearest_bday.display_name }}" class="nearest-avatar-img">
                 {% else %}
                 <div class="nearest-avatar-placeholder">🎂</div>
                 {% endif %}
+                
+                <!-- 1-Click Update Photo on Dashboard Avatar for Admin -->
+                <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" id="dashSpotlightPhotoForm" style="position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 90%;">
+                    <input type="hidden" name="user_id" value="{{ nearest_bday.id }}">
+                    <input type="hidden" name="redirect_to" value="index">
+                    <label for="dash-spotlight-photo-input" class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; background: rgba(10, 7, 24, 0.85); backdrop-filter: blur(10px); cursor: pointer; border-color: var(--accent-yellow); color: #fff; width: 100%;">
+                        📷 Change Photo
+                    </label>
+                    <input type="file" id="dash-spotlight-photo-input" name="hero_image" accept="image/*" style="display: none;" onchange="document.getElementById('dashSpotlightPhotoForm').submit();">
+                </form>
             </div>
 
             <div class="nearest-info">
@@ -443,3 +453,4 @@ function initScratchCard() {
 }
 </script>
 {% endblock %}
+

@@ -402,17 +402,24 @@ def upload_hero_photo():
     if not is_logged_in():
         return redirect(url_for("login"))
         
+    target_user_id = session["user_id"]
+    redirect_dest = request.form.get("redirect_to", "index")
+    
+    # Admin can update hero photo for ANY user anytime
+    if session.get("user_role") == "admin" and request.form.get("user_id"):
+        target_user_id = request.form.get("user_id")
+        
     if "hero_image" not in request.files:
         flash("No image file selected.", "error")
-        return redirect(url_for("index"))
+        return redirect(url_for(redirect_dest))
         
     file = request.files["hero_image"]
     if not file or file.filename == "":
         flash("No image file selected.", "error")
-        return redirect(url_for("index"))
+        return redirect(url_for(redirect_dest))
         
     safe_name = secure_filename(file.filename)
-    unique_name = f"hero_{session['user_id']}_{int(datetime.now().timestamp())}_{safe_name}"
+    unique_name = f"hero_{target_user_id}_{int(datetime.now().timestamp())}_{safe_name}"
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
     file.save(filepath)
     
@@ -427,15 +434,25 @@ def upload_hero_photo():
             if blob.public_url:
                 photo_path = blob.public_url
         except Exception as e:
-            print(f"Firebase Storage upload notice: {e}")
+            print(f"[Firebase Storage] Hero upload notice: {e}")
     
     conn = get_db_connection()
-    conn.execute("UPDATE users SET profile_pic = ? WHERE id = ?", (photo_path, session["user_id"]))
+    conn.execute("UPDATE users SET profile_pic = ? WHERE id = ?", (photo_path, target_user_id))
     conn.commit()
     conn.close()
     
-    flash("Hero portrait photo updated! 📸", "success")
-    return redirect(url_for("index"))
+    # Also update Firestore user profile pic if active
+    if firebase_db:
+        try:
+            firebase_db.collection("users").document(str(target_user_id)).set({
+                "profile_pic": photo_path,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+        except Exception as e:
+            print(f"[Firestore] Profile sync notice: {e}")
+    
+    flash("Hero portrait photo updated successfully! 📸", "success")
+    return redirect(url_for(redirect_dest))
 
 @app.route("/api/add-note", methods=["POST"])
 @admin_required
@@ -708,4 +725,5 @@ def admin_delete_user(user_id):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
 

@@ -10,12 +10,22 @@
     <div class="spotlight-badge">👑 Upcoming Birthday Spotlight</div>
     
     <div class="nearest-bday-grid">
-        <div class="nearest-avatar-wrapper">
+        <div class="nearest-avatar-wrapper" style="position: relative;">
             {% if nearest_bday.profile_pic %}
             <img src="{{ nearest_bday.profile_pic }}" alt="{{ nearest_bday.display_name }}" class="nearest-avatar-img">
             {% else %}
             <div class="nearest-avatar-placeholder">🎂</div>
             {% endif %}
+            
+            <!-- 1-Click Update Photo on Avatar -->
+            <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" id="spotlightPhotoForm" style="position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 90%;">
+                <input type="hidden" name="user_id" value="{{ nearest_bday.id }}">
+                <input type="hidden" name="redirect_to" value="admin_panel">
+                <label for="spotlight-photo-input" class="btn btn-secondary" style="padding: 0.35rem 0.6rem; font-size: 0.78rem; background: rgba(10, 7, 24, 0.85); backdrop-filter: blur(10px); cursor: pointer; border-color: var(--accent-yellow); color: #fff; width: 100%;">
+                    📷 Change Photo
+                </label>
+                <input type="file" id="spotlight-photo-input" name="hero_image" accept="image/*" style="display: none;" onchange="document.getElementById('spotlightPhotoForm').submit();">
+            </form>
         </div>
 
         <div class="nearest-info">
@@ -120,6 +130,7 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Hero Photo 📸</th>
                             <th>Recipient</th>
                             <th>Email (Login ID)</th>
                             <th>Password 🔑</th>
@@ -133,14 +144,26 @@
                             <tr>
                                 <td style="font-weight: 700; color: var(--accent-yellow);">#{{ user.id }}</td>
                                 <td>
-                                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                    <!-- Photo & 1-Click Upload for Admin -->
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
                                         {% if user.profile_pic %}
-                                        <img src="{{ user.profile_pic }}" alt="{{ user.display_name }}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--accent-yellow);">
+                                        <img src="{{ user.profile_pic }}" alt="{{ user.display_name }}" style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover; border: 1.5px solid var(--accent-yellow);">
                                         {% else %}
-                                        <span style="font-size: 1.2rem;">👤</span>
+                                        <div style="width: 38px; height: 38px; border-radius: 8px; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">👤</div>
                                         {% endif %}
-                                        <span style="font-weight: 600;">{{ user.display_name }}</span>
+                                        
+                                        <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" id="userPhotoForm-{{ user.id }}">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="redirect_to" value="admin_panel">
+                                            <label for="user-photo-input-{{ user.id }}" class="copy-small-btn" title="Upload/Change Hero Polaroid Photo" style="cursor: pointer; background: rgba(255,255,255,0.08); border-radius: 6px; padding: 4px 6px;">
+                                                📷
+                                            </label>
+                                            <input type="file" id="user-photo-input-{{ user.id }}" name="hero_image" accept="image/*" style="display: none;" onchange="document.getElementById('userPhotoForm-{{ user.id }}').submit();">
+                                        </form>
                                     </div>
+                                </td>
+                                <td>
+                                    <span style="font-weight: 700; color: #fff;">{{ user.display_name }}</span>
                                 </td>
                                 <td>
                                     <div class="credential-cell">
