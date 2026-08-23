@@ -8,7 +8,7 @@
         
         <!-- Glowing Header with Icon -->
         <div class="auth-header">
-            <div class="auth-badge-icon">🎂</div>
+            <div class="auth-badge-icon">🎁</div>
             <span class="badge-pill">Private Birthday Vault</span>
             <h1 class="gradient-text title-serif auth-title">Welcome Back</h1>
             <p class="auth-subtitle">Enter your private login credentials to access the celebration.</p>
@@ -38,40 +38,10 @@
             </button>
         </form>
 
-        <!-- Quick Demo Fill Helpers for Convenience -->
-        <div class="auth-quick-fill">
-            <span class="quick-fill-label">Quick Demo Access:</span>
-            <div class="quick-chips">
-                <button type="button" class="quick-chip admin-chip" onclick="fillCredentials('admin@bday.com', 'admin123')">
-                    👑 Admin Login
-                </button>
-                <button type="button" class="quick-chip user-chip" onclick="fillCredentials('jay@bday.com', 'jay123')">
-                    🎉 Jay (User)
-                </button>
-            </div>
-        </div>
-
-        <div class="auth-footer-note">
+        <div class="auth-footer-note" style="margin-top: 1.5rem;">
             <span>🔒 Protected Private Vault • Credentials created by Admin</span>
         </div>
 
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function fillCredentials(email, pass) {
-    const emailInput = document.getElementById("login-email");
-    const passInput = document.getElementById("login-password");
-    if (emailInput && passInput) {
-        emailInput.value = email;
-        passInput.value = pass;
-        emailInput.focus();
-        if (typeof triggerConfettiBurst === "function") {
-            triggerConfettiBurst(1.0);
-        }
-    }
-}
-</script>
 {% endblock %}
