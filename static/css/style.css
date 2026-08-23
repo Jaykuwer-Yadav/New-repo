@@ -1658,3 +1658,55 @@ input:focus, textarea:focus, select:focus {
         height: 240px;
     }
 }
+
+/* Polaroid Hover Overlay & 1-Click Upload Button */
+.polaroid-photo-frame {
+    position: relative;
+    overflow: hidden;
+}
+
+.polaroid-hover-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10, 7, 24, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 4px;
+}
+
+.polaroid-photo-frame:hover .polaroid-hover-overlay {
+    opacity: 1;
+}
+
+.change-photo-btn-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    margin-top: 12px;
+    padding: 0.5rem 1.1rem;
+    background: #2a1f45;
+    border: 1px solid var(--accent-yellow);
+    border-radius: 999px;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.change-photo-btn-pill:hover {
+    background: var(--accent-pink);
+    border-color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(255, 77, 141, 0.4);
+}

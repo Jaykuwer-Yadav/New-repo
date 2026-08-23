@@ -122,10 +122,12 @@
                 </div>
             </div>
 
-            <!-- Main Center Hero Polaroid with Washi Tape -->
+            <!-- Main Center Hero Polaroid with Washi Tape & 1-Click Upload -->
             <div class="main-polaroid">
                 <div class="washi-tape"></div>
-                <div class="polaroid-photo-frame">
+                
+                <!-- Clickable Polaroid Frame (Click anywhere on photo to upload) -->
+                <label for="hero_image" class="polaroid-photo-frame" style="cursor: pointer; display: block;" title="Click anywhere to upload or change your birthday photo!">
                     {% if user_data and user_data.profile_pic %}
                     <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
                     {% elif recent_memories and recent_memories|length > 0 %}
@@ -134,14 +136,22 @@
                     <div class="hero-portrait-fallback">
                         <span class="fallback-cake">🎂</span>
                         <span class="fallback-text">{{ display_name }}</span>
+                        <span style="font-size: 0.8rem; color: var(--accent-yellow); margin-top: 0.5rem; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 999px;">📷 Tap to Add Photo</span>
                     </div>
                     {% endif %}
-                </div>
+                    
+                    <!-- Hover Camera Overlay -->
+                    <div class="polaroid-hover-overlay">
+                        <span style="font-size: 2rem;">📷</span>
+                        <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">Change Photo</span>
+                    </div>
+                </label>
                 
-                <!-- Change Portrait Upload Button -->
+                <!-- Direct Upload Button under Polaroid -->
                 <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" class="polaroid-photo-form" id="heroPhotoForm">
-                    <label for="hero_image" class="change-photo-btn" title="Upload or change hero photo">
-                        📷 Change Portrait
+                    <label for="hero_image" class="change-photo-btn-pill" title="Upload or change hero photo">
+                        <span>📷</span>
+                        <span>Upload / Change Photo</span>
                     </label>
                     <input type="file" id="hero_image" name="hero_image" accept="image/*" style="display: none;" onchange="document.getElementById('heroPhotoForm').submit();">
                 </form>
@@ -453,4 +463,5 @@ function initScratchCard() {
 }
 </script>
 {% endblock %}
+
 
