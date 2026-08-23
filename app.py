@@ -2,6 +2,7 @@
 # pylint: disable=import-error
 import os
 import sys
+import glob
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
@@ -18,6 +19,33 @@ try:
     from werkzeug.utils import secure_filename
 except ImportError:
     pass
+
+# Firebase Admin SDK Initialization
+firebase_app = None
+firebase_db = None
+firebase_bucket = None
+
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore, storage
+    
+    # Locate any firebase admin sdk private key in directory
+    key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
+    if key_files and os.path.exists(key_files[0]):
+        cred = credentials.Certificate(key_files[0])
+        # Default bucket name for Firebase project
+        bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
+        firebase_app = firebase_admin.initialize_app(cred, {
+            "storageBucket": bucket_name
+        })
+        firebase_db = firestore.client()
+        try:
+            firebase_bucket = storage.bucket()
+        except Exception:
+            firebase_bucket = None
+        print(f"[Firebase] Initialized successfully for project: {cred.project_id}")
+except Exception as e:
+    print(f"[Storage] Running with local SQLite backend (Firebase optional: {e})")
 
 app = Flask(__name__)
 app.secret_key = "birthday_memories_secret_key_for_sessions_2026"
@@ -377,6 +405,17 @@ def upload_hero_photo():
     
     photo_path = f"/static/uploads/{unique_name}"
     
+    # Upload to Firebase Storage if connected
+    if firebase_bucket:
+        try:
+            blob = firebase_bucket.blob(f"hero_photos/{unique_name}")
+            blob.upload_from_filename(filepath)
+            blob.make_public()
+            if blob.public_url:
+                photo_path = blob.public_url
+        except Exception as e:
+            print(f"Firebase Storage upload notice: {e}")
+    
     conn = get_db_connection()
     conn.execute("UPDATE users SET profile_pic = ? WHERE id = ?", (photo_path, session["user_id"]))
     conn.commit()
@@ -405,6 +444,20 @@ def add_note():
     )
     conn.commit()
     conn.close()
+    
+    # Sync with Firestore if active
+    if firebase_db:
+        try:
+            firebase_db.collection("notes").add({
+                "user_id": target_user_id,
+                "sender_name": sender_name,
+                "title": title,
+                "message": message,
+                "icon": icon,
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+        except Exception as e:
+            print(f"Firestore note sync notice: {e}")
     
     flash("Birthday Note & Letter added successfully! 💌", "success")
     return redirect(url_for("notes"))
@@ -486,6 +539,17 @@ def upload_memory():
     file.save(filepath)
     
     media_web_path = f"/static/uploads/{unique_filename}"
+    
+    # Upload to Firebase Storage if available
+    if firebase_bucket:
+        try:
+            blob = firebase_bucket.blob(f"memories/{unique_filename}")
+            blob.upload_from_filename(filepath)
+            blob.make_public()
+            if blob.public_url:
+                media_web_path = blob.public_url
+        except Exception as e:
+            print(f"Firebase Storage memory upload notice: {e}")
     
     lock_password_hash = None
     if is_locked and lock_password:
@@ -629,5 +693,6 @@ def admin_delete_user(user_id):
     return redirect(url_for("admin_panel"))
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))`n    app.run(host="0.0.0.0", port=port, debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
 

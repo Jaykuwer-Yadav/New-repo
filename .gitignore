@@ -1,7 +1,20 @@
-﻿.venv/
+﻿# Secret Credentials & Keys (DO NOT COMMIT)
+*firebase-adminsdk*.json
+firebase-key.json
+serviceAccountKey.json
+*.json.secret
+.env
+.env.*
+
+# Python Virtual Environments & Cache
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Node modules & OS metadata
 node_modules/
-.env
 .DS_Store
+Thumbs.db
 migrate_db.py
