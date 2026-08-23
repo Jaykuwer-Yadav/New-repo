@@ -1,0 +1,277 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Admin Panel - Birthday Memories Vault{% endblock %}
+
+{% block content %}
+
+<!-- Admin Nearest Birthday Spotlight Hero Widget -->
+{% if nearest_bday %}
+<div class="glass-panel nearest-bday-card" style="margin-bottom: 2.5rem; border-color: rgba(255, 214, 77, 0.45);">
+    <div class="spotlight-badge">👑 Upcoming Birthday Spotlight</div>
+    
+    <div class="nearest-bday-grid">
+        <div class="nearest-avatar-wrapper">
+            {% if nearest_bday.profile_pic %}
+            <img src="{{ nearest_bday.profile_pic }}" alt="{{ nearest_bday.display_name }}" class="nearest-avatar-img">
+            {% else %}
+            <div class="nearest-avatar-placeholder">🎂</div>
+            {% endif %}
+        </div>
+
+        <div class="nearest-info">
+            <span class="badge-pill" style="font-size: 0.8rem;">Nearest Celebration</span>
+            <h1 class="gradient-text title-serif" style="font-size: 2.6rem; margin: 0.4rem 0;">{{ nearest_bday.display_name }}</h1>
+            <p style="color: var(--text-muted); font-size: 1rem; margin-bottom: 0.8rem;">
+                Email: <strong>{{ nearest_bday.email }}</strong> • Target Birthday: <span style="color: var(--accent-blue); font-weight: 700;">{{ nearest_bday.birthday_date }}</span>
+            </p>
+
+            <div class="countdown-box nearest-counter" style="margin: 1rem 0; justify-content: flex-start;">
+                <div class="timer-segment"><div class="timer-val" id="admin-near-days">00</div><div class="timer-lbl">Days</div></div>
+                <div class="timer-segment"><div class="timer-val" id="admin-near-hours">00</div><div class="timer-lbl">Hours</div></div>
+                <div class="timer-segment"><div class="timer-val" id="admin-near-minutes">00</div><div class="timer-lbl">Minutes</div></div>
+                <div class="timer-segment"><div class="timer-val" id="admin-near-seconds">00</div><div class="timer-lbl">Seconds</div></div>
+            </div>
+
+            <div class="nearest-actions" style="display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 1rem;">
+                <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.75rem 1.6rem; font-size: 0.95rem;">📸 Upload Photos/Videos</a>
+                <a href="{{ url_for('notes') }}" class="btn btn-secondary" style="width: auto; padding: 0.75rem 1.6rem; font-size: 0.95rem; border-color: var(--accent-yellow); color: var(--accent-yellow);">💌 Write Birthday Letter</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="dashboard-grid" style="grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+    
+    <!-- User Creation Panel -->
+    <div class="glass-panel">
+        <h2 class="gradient-text title-serif" style="font-size: 2rem; margin-bottom: 0.5rem; text-align: center;">Add New Account 🎂</h2>
+        <p style="text-align: center; margin-bottom: 1.8rem; color: var(--text-muted); font-size: 0.95rem;">
+            Create login credentials and customize countdown for a recipient.
+        </p>
+        
+        <form action="{{ url_for('admin_create_user') }}" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="reg-name">Display Name (Recipient)</label>
+                <input type="text" id="reg-name" name="display_name" placeholder="e.g. Samira" required>
+            </div>
+            <div class="form-group">
+                <label for="reg-email">Login Email Address</label>
+                <input type="email" id="reg-email" name="email" placeholder="e.g. samira@bday.com" required>
+            </div>
+            <div class="form-group">
+                <label for="reg-password">Login Password</label>
+                <div class="input-wrapper">
+                    <input type="password" id="reg-password" name="password" placeholder="Set user password..." required>
+                    <button type="button" class="toggle-password-btn" title="Toggle password visibility">👁️</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="reg-bday">Birth Date & Time</label>
+                <input type="datetime-local" id="reg-bday" name="birthday_date" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="reg-photo">Recipient Hero Portrait Photo (Optional)</label>
+                <input type="file" id="reg-photo" name="profile_pic" accept="image/*" style="padding: 0.5rem 0;">
+                <small style="color: var(--text-muted); font-size: 0.8rem;">Appears in the center Polaroid on their dashboard</small>
+            </div>
+
+            <div class="form-group">
+                <label for="reg-scratch">Golden Scratch Card Surprise Message (Optional)</label>
+                <textarea id="reg-scratch" name="scratch_reward" rows="2" placeholder="e.g. You won a special birthday trip and secret gift! 🎁"></textarea>
+            </div>
+            
+            <div class="form-group" style="background: rgba(77, 240, 255, 0.04); border: 1px dashed rgba(77, 240, 255, 0.3); border-radius: 12px; padding: 1rem; margin-top: 1rem;">
+                <label for="reg-lock-key" style="color: var(--accent-blue);">Secondary Lock's Key (Optional)</label>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                    Master secondary PIN the user can use to unlock locked cards.
+                </p>
+                <div class="input-wrapper">
+                    <input type="password" id="reg-lock-key" name="user_lock_key" placeholder="e.g. secret123 (optional)">
+                    <button type="button" class="toggle-password-btn" title="Toggle key visibility">👁️</button>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn" style="margin-top: 1.5rem;">Create User Account 👑</button>
+        </form>
+    </div>
+
+    <!-- Active Users Management & Credentials View List -->
+    <div class="glass-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 0.5rem;">
+            <h2 class="gradient-text title-serif" style="font-size: 2rem;">User Accounts & Passwords 🔑</h2>
+            <button type="button" id="toggleAllBtn" class="btn btn-secondary" onclick="toggleAllPasswords()" style="width: auto; padding: 0.4rem 0.9rem; font-size: 0.85rem; border-color: var(--accent-yellow); color: var(--accent-yellow);">
+                👁️ Show All Passwords
+            </button>
+        </div>
+        <p style="margin-bottom: 1.5rem; color: var(--text-muted); font-size: 0.95rem;">
+            View, reveal, and copy all recipient login credentials and secondary keys.
+        </p>
+        
+        {% if not users %}
+            <div style="text-align: center; padding: 4rem 0; color: var(--text-muted);">
+                <span style="font-size: 3.5rem; display: block; margin-bottom: 1rem;">👥</span>
+                <p>No standard user accounts created yet. Add one using the form on the left!</p>
+            </div>
+        {% else %}
+            <div style="overflow-x: auto;">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Recipient</th>
+                            <th>Email (Login ID)</th>
+                            <th>Password 🔑</th>
+                            <th>Secondary Key 🔒</th>
+                            <th>Birth Date 🎂</th>
+                            <th style="text-align: center;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td style="font-weight: 700; color: var(--accent-yellow);">#{{ user.id }}</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                        {% if user.profile_pic %}
+                                        <img src="{{ user.profile_pic }}" alt="{{ user.display_name }}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--accent-yellow);">
+                                        {% else %}
+                                        <span style="font-size: 1.2rem;">👤</span>
+                                        {% endif %}
+                                        <span style="font-weight: 600;">{{ user.display_name }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="credential-cell">
+                                        <span class="user-email-text">{{ user.email }}</span>
+                                        <button class="copy-small-btn" onclick="copyToClipboard('{{ user.email }}', this)" title="Copy Email">📋</button>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="credential-cell">
+                                        <span class="masked-pass user-password-field" id="pass-{{ user.id }}" data-pass="{{ user.plain_password or '••••••' }}">••••••</span>
+                                        <button class="reveal-btn" onclick="toggleCredentialReveal('pass-{{ user.id }}', this)" title="Show/Hide Password">👁️</button>
+                                        {% if user.plain_password %}
+                                        <button class="copy-small-btn" onclick="copyToClipboard('{{ user.plain_password }}', this)" title="Copy Password">📋</button>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if user.plain_lock_key %}
+                                    <div class="credential-cell">
+                                        <span class="masked-pass user-lockkey-field" id="key-{{ user.id }}" data-pass="{{ user.plain_lock_key }}">••••••</span>
+                                        <button class="reveal-btn" onclick="toggleCredentialReveal('key-{{ user.id }}', this)" title="Show/Hide Key">👁️</button>
+                                        <button class="copy-small-btn" onclick="copyToClipboard('{{ user.plain_lock_key }}', this)" title="Copy Key">📋</button>
+                                    </div>
+                                    {% else %}
+                                    <span style="color: var(--text-muted); font-size: 0.85rem;">None</span>
+                                    {% endif %}
+                                </td>
+                                <td style="color: var(--accent-blue); font-size: 0.9rem;">{{ user.birthday_date or 'Not set' }}</td>
+                                <td style="text-align: center;">
+                                    <form action="{{ url_for('admin_delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to revoke access and delete all memories for {{ user.display_name }}?');" style="display: inline;">
+                                        <button type="submit" class="btn btn-secondary delete-user-btn">Revoke 🗑️</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allRevealed = false;
+
+function toggleCredentialReveal(elementId, btn) {
+    const span = document.getElementById(elementId);
+    if (!span) return;
+    const realPass = span.getAttribute("data-pass");
+    if (span.textContent === "••••••") {
+        span.textContent = realPass;
+        span.classList.add("revealed");
+        if (btn) btn.textContent = "🙈";
+    } else {
+        span.textContent = "••••••";
+        span.classList.remove("revealed");
+        if (btn) btn.textContent = "👁️";
+    }
+}
+
+function toggleAllPasswords() {
+    allRevealed = !allRevealed;
+    const toggleBtn = document.getElementById("toggleAllBtn");
+    
+    document.querySelectorAll(".user-password-field, .user-lockkey-field").forEach(span => {
+        const realPass = span.getAttribute("data-pass");
+        const row = span.closest(".credential-cell");
+        const btn = row ? row.querySelector(".reveal-btn") : null;
+        
+        if (allRevealed) {
+            span.textContent = realPass;
+            span.classList.add("revealed");
+            if (btn) btn.textContent = "🙈";
+        } else {
+            span.textContent = "••••••";
+            span.classList.remove("revealed");
+            if (btn) btn.textContent = "👁️";
+        }
+    });
+    
+    if (toggleBtn) {
+        toggleBtn.textContent = allRevealed ? "🙈 Hide All Passwords" : "👁️ Show All Passwords";
+    }
+}
+
+function copyToClipboard(text, btn) {
+    if (!navigator.clipboard) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+    } else {
+        navigator.clipboard.writeText(text);
+    }
+    const orig = btn.textContent;
+    btn.textContent = "✓";
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+}
+
+// Admin nearest birthday countdown
+{% if nearest_bday %}
+const nearBdayAdmin = "{{ nearest_bday.birthday_date }}";
+if (nearBdayAdmin) {
+    const nearTarget = new Date(nearBdayAdmin).getTime();
+    function updateAdminNearCounter() {
+        const now = Date.now();
+        const diff = nearTarget - now;
+        if (diff <= 0) {
+            document.getElementById("admin-near-days").textContent = "00";
+            document.getElementById("admin-near-hours").textContent = "00";
+            document.getElementById("admin-near-minutes").textContent = "00";
+            document.getElementById("admin-near-seconds").textContent = "00";
+            return;
+        }
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        document.getElementById("admin-near-days").textContent = String(d).padStart(2, '0');
+        document.getElementById("admin-near-hours").textContent = String(h).padStart(2, '0');
+        document.getElementById("admin-near-minutes").textContent = String(m).padStart(2, '0');
+        document.getElementById("admin-near-seconds").textContent = String(s).padStart(2, '0');
+    }
+    updateAdminNearCounter();
+    setInterval(updateAdminNearCounter, 1000);
+}
+{% endif %}
+</script>
+{% endblock %}

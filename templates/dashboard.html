@@ -1,0 +1,445 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Dashboard - Birthday Memories Vault{% endblock %}
+
+{% block content %}
+
+{% if user_role == 'admin' %}
+<!-- ==========================================
+     ADMIN DASHBOARD VIEW: NEAREST BIRTHDAYS SPOTLIGHT
+     ========================================== -->
+<div class="admin-dashboard-wrapper">
+    
+    <!-- Nearest Birthday Hero Spotlight Card -->
+    {% if nearest_bday %}
+    <div class="glass-panel nearest-bday-card" style="margin-bottom: 2.5rem; border-color: rgba(255, 214, 77, 0.4);">
+        <div class="spotlight-badge">👑 Nearest Birthday Spotlight</div>
+        
+        <div class="nearest-bday-grid">
+            <div class="nearest-avatar-wrapper">
+                {% if nearest_bday.profile_pic %}
+                <img src="{{ nearest_bday.profile_pic }}" alt="{{ nearest_bday.display_name }}" class="nearest-avatar-img">
+                {% else %}
+                <div class="nearest-avatar-placeholder">🎂</div>
+                {% endif %}
+            </div>
+
+            <div class="nearest-info">
+                <span class="badge-pill" style="font-size: 0.8rem;">Next Birthday Celebration</span>
+                <h1 class="gradient-text title-serif" style="font-size: 2.8rem; margin: 0.4rem 0;">{{ nearest_bday.display_name }}</h1>
+                <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 1rem;">
+                    Email: <strong>{{ nearest_bday.email }}</strong> • Birthday: <span style="color: var(--accent-blue);">{{ nearest_bday.birthday_date }}</span>
+                </p>
+
+                <!-- Admin Countdown to Nearest Birthday -->
+                <div class="countdown-box nearest-counter" id="nearestCountdownBox" style="margin: 1.2rem 0; justify-content: flex-start;">
+                    <div class="timer-segment"><div class="timer-val" id="near-days">00</div><div class="timer-lbl">Days</div></div>
+                    <div class="timer-segment"><div class="timer-val" id="near-hours">00</div><div class="timer-lbl">Hours</div></div>
+                    <div class="timer-segment"><div class="timer-val" id="near-minutes">00</div><div class="timer-lbl">Minutes</div></div>
+                    <div class="timer-segment"><div class="timer-val" id="near-seconds">00</div><div class="timer-lbl">Seconds</div></div>
+                </div>
+
+                <div class="nearest-actions" style="display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 1rem;">
+                    <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.75rem 1.6rem; font-size: 0.95rem;">📸 Add Memories for {{ nearest_bday.display_name }}</a>
+                    <a href="{{ url_for('notes') }}" class="btn btn-secondary" style="width: auto; padding: 0.75rem 1.6rem; font-size: 0.95rem; border-color: var(--accent-yellow); color: var(--accent-yellow);">💌 Write Birthday Letter</a>
+                    <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary" style="width: auto; padding: 0.75rem 1.6rem; font-size: 0.95rem;">👑 Manage Passwords</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Upcoming Birthdays List -->
+    {% if all_upcoming and all_upcoming|length > 1 %}
+    <div class="glass-panel" style="margin-bottom: 2.5rem;">
+        <h2 class="title-serif gradient-text" style="font-size: 1.8rem; margin-bottom: 1rem;">📅 All Upcoming Birthdays (Sorted Chronologically)</h2>
+        <div class="upcoming-recipients-grid">
+            {% for u in all_upcoming %}
+            <div class="upcoming-item glass-panel">
+                <div class="upcoming-item-left">
+                    <span class="upcoming-icon">🎂</span>
+                    <div>
+                        <h4 style="font-size: 1.15rem; font-weight: 700;">{{ u.display_name }}</h4>
+                        <p style="color: var(--text-muted); font-size: 0.85rem;">{{ u.email }}</p>
+                    </div>
+                </div>
+                <div class="upcoming-item-right">
+                    <span class="bday-time-badge" style="color: var(--accent-blue); font-weight: 600;">{{ u.birthday_date }}</span>
+                    <span class="days-remaining-pill">
+                        {% if u.is_past %}
+                        🎉 Today / Arrived!
+                        {% else %}
+                        ⏳ In {{ u.days_left }}d {{ u.hours_left }}h
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% else %}
+<!-- ==========================================
+     STANDARD USER DASHBOARD: SCRAPBOOK POLAROID & SCRATCH CARD
+     ========================================== -->
+<div class="scrapbook-hero-container">
+    
+    <!-- Pressed Florals / Scrapbook Frame Hero -->
+    <div class="scrapbook-card glass-panel">
+        
+        <div class="scrapbook-header">
+            <span class="vintage-subtext">A Celebration of You</span>
+            <div class="calligraphy-title">
+                <span class="happy-word">HAPPY</span>
+                <span class="birthday-word">Birthday</span>
+            </div>
+            <h2 class="recipient-scrapbook-name">{{ display_name }}</h2>
+        </div>
+
+        <!-- Polaroid Collage Centerpiece (Image 1 Inspired) -->
+        <div class="polaroid-scene">
+            <!-- Left tilted mini snapshot -->
+            <div class="mini-polaroid polaroid-left">
+                <div class="mini-polaroid-inner">
+                    {% if recent_memories and recent_memories|length > 1 %}
+                    <img src="{{ recent_memories[1].media_path }}" alt="Memory">
+                    {% else %}
+                    <div class="polaroid-placeholder">✨</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Main Center Hero Polaroid with Washi Tape -->
+            <div class="main-polaroid">
+                <div class="washi-tape"></div>
+                <div class="polaroid-photo-frame">
+                    {% if user_data and user_data.profile_pic %}
+                    <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    {% elif recent_memories and recent_memories|length > 0 %}
+                    <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    {% else %}
+                    <div class="hero-portrait-fallback">
+                        <span class="fallback-cake">🎂</span>
+                        <span class="fallback-text">{{ display_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Change Portrait Upload Button -->
+                <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" class="polaroid-photo-form" id="heroPhotoForm">
+                    <label for="hero_image" class="change-photo-btn" title="Upload or change hero photo">
+                        📷 Change Portrait
+                    </label>
+                    <input type="file" id="hero_image" name="hero_image" accept="image/*" style="display: none;" onchange="document.getElementById('heroPhotoForm').submit();">
+                </form>
+            </div>
+
+            <!-- Right tilted mini snapshot -->
+            <div class="mini-polaroid polaroid-right">
+                <div class="mini-polaroid-inner">
+                    {% if recent_memories and recent_memories|length > 2 %}
+                    <img src="{{ recent_memories[2].media_path }}" alt="Memory">
+                    {% else %}
+                    <div class="polaroid-placeholder">💖</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Heartfelt Quote -->
+        <p class="scrapbook-quote">
+            "Wishing you a birthday filled with love, laughter, and cherished memories to last a lifetime."
+        </p>
+
+        <!-- Countdown Box in Scrapbook -->
+        <div class="countdown-card" style="margin: 2rem 0 1rem;">
+            <h3 class="title-serif" style="font-size: 1.4rem; color: var(--accent-yellow); margin-bottom: 1rem;">
+                ⏳ Countdown to Your Big Day
+            </h3>
+            
+            <div class="countdown-box" id="dashboardCountdownBox">
+                <div class="timer-segment"><div class="timer-val" id="dash-days">00</div><div class="timer-lbl">Days</div></div>
+                <div class="timer-segment"><div class="timer-val" id="dash-hours">00</div><div class="timer-lbl">Hours</div></div>
+                <div class="timer-segment"><div class="timer-val" id="dash-minutes">00</div><div class="timer-lbl">Minutes</div></div>
+                <div class="timer-segment"><div class="timer-val" id="dash-seconds">00</div><div class="timer-lbl">Seconds</div></div>
+            </div>
+
+            <div id="dashCelebrationMsg" style="display: none; animation: fadeIn 1s ease-in-out; padding: 1.5rem 0;">
+                <h2 class="gradient-text title-serif" style="font-size: 2.6rem; margin-bottom: 0.5rem;">🎂 IT'S YOUR BIRTHDAY! 🎂</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 1.5rem; color: var(--text-main);">The countdown is complete! Today is all about you!</p>
+                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                    <a href="{{ url_for('cake') }}" class="btn" style="width: auto; padding: 0.9rem 2.5rem;">Blow Out Candles! 🎂</a>
+                    <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.9rem 2.5rem; background: linear-gradient(135deg, var(--accent-blue), #9d4edd);">Open Memory Chest 📸</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==========================================
+         INTERACTIVE GOLDEN SCRATCH CARD (Image 3 Inspired)
+         ========================================== -->
+    <div class="scratch-section glass-panel" style="margin-top: 2.5rem; text-align: center;">
+        <span class="badge-pill">✨ Secret Gift ✨</span>
+        <h2 class="gradient-text title-serif" style="font-size: 2.4rem; margin: 0.6rem 0 0.3rem;">Surprise Gift Card!</h2>
+        <p style="color: var(--text-muted); font-size: 1rem; margin-bottom: 1.8rem;">
+            Scratch the golden card below with your mouse or finger to reveal your secret birthday surprise!
+        </p>
+
+        <div class="scratch-card-container">
+            <!-- Underneath Revealed Reward -->
+            <div class="scratch-reward-content" id="scratchReward">
+                <div class="reward-sparkle">🎁</div>
+                <h3 style="font-size: 1.5rem; color: var(--accent-yellow); margin-bottom: 0.5rem; font-family: var(--font-serif);">Special Birthday Surprise</h3>
+                <p style="font-size: 1.1rem; color: #ffffff; line-height: 1.6; max-width: 420px; margin: 0 auto;">
+                    {{ user_data.scratch_reward if user_data and user_data.scratch_reward else '🎉 Congratulations! You unlocked a special birthday hug & secret surprise gift from all of us! 🎁' }}
+                </p>
+                <button class="btn" onclick="triggerConfettiBurst(2.5)" style="margin-top: 1.2rem; width: auto; padding: 0.6rem 1.8rem; font-size: 0.9rem;">
+                    🎉 Celebrate!
+                </button>
+            </div>
+
+            <!-- Canvas Scratch Overlay -->
+            <canvas id="scratchCanvas" width="460" height="260" class="scratch-canvas"></canvas>
+        </div>
+        <small style="color: var(--text-muted); display: block; margin-top: 1rem; font-size: 0.85rem;">✨ Use your cursor or finger to scratch away the golden foil</small>
+    </div>
+
+    <!-- ==========================================
+         EXPLORATION QUICK CARDS (Image 2 Inspired)
+         ========================================== -->
+    <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-top: 2.5rem;">
+        
+        <a href="{{ url_for('notes') }}" class="feature-card">
+            <span class="feature-icon">💌</span>
+            <h2>Letters & Notes</h2>
+            <p>Read heartfelt birthday messages, personal letters, and wishes written for you!</p>
+            <span class="card-arrow">Read Notes ({{ note_count or 0 }}) →</span>
+        </a>
+
+        <a href="{{ url_for('cake') }}" class="feature-card">
+            <span class="feature-icon">🎂</span>
+            <h2>Blow the Cake</h2>
+            <p>Blow into your mic or tap to blow out the virtual candles and make a wish!</p>
+            <span class="card-arrow">Blow Candles →</span>
+        </a>
+
+        {% if is_birthday_arrived %}
+        <a href="{{ url_for('memories') }}" class="feature-card">
+            <span class="feature-icon">📸</span>
+            <h2>Memory Chest</h2>
+            <p>A vault filled with precious photos and video memories created just for you.</p>
+            <span class="card-arrow">Open Chest →</span>
+        </a>
+        {% else %}
+        <a href="{{ url_for('timer') }}" class="feature-card locked-feature-card" title="Memory Chest unlocks on your birthday!">
+            <span class="feature-icon">🔒</span>
+            <h2>Memory Chest</h2>
+            <p>Locked until your countdown reaches zero. Anticipation makes it sweeter!</p>
+            <span class="card-arrow" style="color: var(--accent-yellow);">⏳ Unlocks on Birthday →</span>
+        </a>
+        {% endif %}
+
+        <div class="feature-card song-card" onclick="toggleBirthdayMusic()" style="cursor: pointer;">
+            <span class="feature-icon">🎵</span>
+            <h2>Birthday Music</h2>
+            <p>Celebratory happy birthday music with soundwave equalizer and confetti!</p>
+            <span class="card-arrow" id="dashMusicAction">Play Song 🎶</span>
+        </div>
+
+    </div>
+
+    <!-- Badges Showcase -->
+    <div class="badges-panel glass-panel" style="background: rgba(255,255,255,0.015); border-color: rgba(255,255,255,0.05); margin-top: 3rem;">
+        <h2 class="title-serif gradient-text" style="font-size: 1.8rem; text-align: left; margin-bottom: 0.3rem;">Earned Badges & Medals 🏆</h2>
+        <p style="text-align: left; font-size: 0.95rem; color: var(--text-muted);">Unlock special achievements as you explore the birthday website.</p>
+        
+        <div class="badge-list">
+            <div class="badge-item {% if 'Time Traveler' in earned_badges %}earned{% endif %}">
+                <span class="badge-icon">⏰</span>
+                <span class="badge-name">Time Traveler</span>
+            </div>
+            <div class="badge-item {% if 'Cake Eater' in earned_badges %}earned{% endif %}">
+                <span class="badge-icon">🎂</span>
+                <span class="badge-name">Cake Eater</span>
+            </div>
+            <div class="badge-item {% if 'Memory Keeper' in earned_badges %}earned{% endif %}">
+                <span class="badge-icon">📸</span>
+                <span class="badge-name">Memory Keeper</span>
+            </div>
+            <div class="badge-item {% if 'Birthday Star' in earned_badges or is_logged_in %}earned{% endif %}">
+                <span class="badge-icon">⭐</span>
+                <span class="badge-name">Birthday Star</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ==========================================
+// 1. Countdown Handlers
+// ==========================================
+document.addEventListener("DOMContentLoaded", () => {
+    // Admin nearest birthday countdown
+    {% if user_role == 'admin' and nearest_bday %}
+    const nearBdayRaw = "{{ nearest_bday.birthday_date }}";
+    if (nearBdayRaw) {
+        const nearTarget = new Date(nearBdayRaw).getTime();
+        function updateNearCounter() {
+            const now = Date.now();
+            const diff = nearTarget - now;
+            if (diff <= 0) {
+                document.getElementById("near-days").textContent = "00";
+                document.getElementById("near-hours").textContent = "00";
+                document.getElementById("near-minutes").textContent = "00";
+                document.getElementById("near-seconds").textContent = "00";
+                return;
+            }
+            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+            document.getElementById("near-days").textContent = String(d).padStart(2, '0');
+            document.getElementById("near-hours").textContent = String(h).padStart(2, '0');
+            document.getElementById("near-minutes").textContent = String(m).padStart(2, '0');
+            document.getElementById("near-seconds").textContent = String(s).padStart(2, '0');
+        }
+        updateNearCounter();
+        setInterval(updateNearCounter, 1000);
+    }
+    {% endif %}
+
+    // Standard User Countdown
+    const rawBday = "{{ birthday_date }}";
+    let targetTime;
+    if (rawBday) {
+        targetTime = new Date(rawBday).getTime();
+    } else {
+        const fallback = new Date();
+        fallback.setHours(fallback.getHours() + 24);
+        targetTime = fallback.getTime();
+    }
+    
+    const cdBox = document.getElementById("dashboardCountdownBox");
+    const celebMsg = document.getElementById("dashCelebrationMsg");
+    const daysEl = document.getElementById("dash-days");
+    const hoursEl = document.getElementById("dash-hours");
+    const minsEl = document.getElementById("dash-minutes");
+    const secsEl = document.getElementById("dash-seconds");
+    
+    function updateCounter() {
+        if (!cdBox) return;
+        const now = Date.now();
+        const diff = targetTime - now;
+        
+        if (diff <= 0) {
+            cdBox.style.display = "none";
+            if (celebMsg) celebMsg.style.display = "block";
+            return;
+        }
+        
+        cdBox.style.display = "flex";
+        if (celebMsg) celebMsg.style.display = "none";
+        
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        if (daysEl) daysEl.textContent = String(d).padStart(2, '0');
+        if (hoursEl) hoursEl.textContent = String(h).padStart(2, '0');
+        if (minsEl) minsEl.textContent = String(m).padStart(2, '0');
+        if (secsEl) secsEl.textContent = String(s).padStart(2, '0');
+    }
+    
+    updateCounter();
+    setInterval(updateCounter, 1000);
+
+    // Initialize Interactive Golden Scratch Card
+    initScratchCard();
+});
+
+// ==========================================
+// 2. Interactive Scratch Card Engine
+// ==========================================
+function initScratchCard() {
+    const canvas = document.getElementById("scratchCanvas");
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Draw Metallic Golden Foil Overlay
+    const goldGrad = ctx.createLinearGradient(0, 0, width, height);
+    goldGrad.addColorStop(0, "#d4af37");
+    goldGrad.addColorStop(0.25, "#f9e076");
+    goldGrad.addColorStop(0.5, "#d4af37");
+    goldGrad.addColorStop(0.75, "#aa7c11");
+    goldGrad.addColorStop(1, "#f3e5ab");
+    
+    ctx.fillStyle = goldGrad;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw shimmering text on foil
+    ctx.fillStyle = "rgba(70, 50, 10, 0.7)";
+    ctx.font = "bold 20px 'Playfair Display', serif";
+    ctx.textAlign = "center";
+    ctx.fillText("✦ Scratch to Reveal Your Gift ✦", width / 2, height / 2 - 10);
+    ctx.font = "14px 'Outfit', sans-serif";
+    ctx.fillText("Use your finger or mouse", width / 2, height / 2 + 18);
+    
+    let isDrawing = false;
+    let scratchedPixels = 0;
+    let celebrated = false;
+    
+    function scratch(e) {
+        if (!isDrawing) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        
+        if (e.touches && e.touches[0]) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        }
+        
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+        
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(x, y, 25, 0, Math.PI * 2, false);
+        ctx.fill();
+        
+        scratchedPixels++;
+        if (scratchedPixels > 40 && !celebrated) {
+            celebrated = true;
+            if (typeof triggerConfettiBurst === "function") {
+                triggerConfettiBurst(2.5);
+            }
+        }
+    }
+    
+    canvas.addEventListener("mousedown", (e) => { isDrawing = true; scratch(e); });
+    window.addEventListener("mouseup", () => { isDrawing = false; });
+    canvas.addEventListener("mousemove", scratch);
+    
+    canvas.addEventListener("touchstart", (e) => { isDrawing = true; scratch(e); e.preventDefault(); }, { passive: false });
+    window.addEventListener("touchend", () => { isDrawing = false; });
+    canvas.addEventListener("touchmove", (e) => { scratch(e); e.preventDefault(); }, { passive: false });
+}
+</script>
+{% endblock %}

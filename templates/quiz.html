@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Trivia & Puzzle - Birthday Memories{% endblock %}
+
+{% block content %}
+<!-- Trivia Quiz Section -->
+<div class="glass-panel quiz-container" id="quizPanel">
+    <h1 class="gradient-text title-serif" style="font-size: 2.8rem; margin-bottom: 0.5rem; text-align: center;">Birthday Trivia</h1>
+    <p style="text-align: center; margin-bottom: 2rem;">Answer all questions correctly to unlock the hidden memory puzzle!</p>
+
+    <!-- Quiz Question Box -->
+    <div class="question-box">
+        <h3 id="questionText" style="font-size: 1.3rem; margin-bottom: 1.5rem; text-align: left;">Loading question...</h3>
+        <div class="options-list" id="optionsContainer">
+            <!-- Rendered by JS -->
+        </div>
+    </div>
+
+    <!-- Quiz Progress Indicator -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem;">
+        <span id="quizProgress" style="font-size: 0.9rem; color: var(--text-muted);">Question 1 of 5</span>
+        <span id="quizScore" style="font-size: 0.9rem; color: var(--text-muted);">Score: 0</span>
+    </div>
+</div>
+
+<!-- Puzzle Unlock Section (Hidden by default) -->
+<div class="glass-panel" id="puzzlePanel" style="display: none; max-width: 600px; margin: 2rem auto; text-align: center;">
+    <h1 class="gradient-text title-serif" style="font-size: 2.8rem; margin-bottom: 0.5rem;">The Memory Puzzle</h1>
+    <p style="margin-bottom: 2rem;">Slide the tiles to unscramble the secret photo and unlock the final message!</p>
+
+    <!-- Interactive Grid Board -->
+    <div class="puzzle-board" id="puzzleBoard">
+        <!-- Rendered by JS -->
+    </div>
+
+    <div style="margin-top: 1.5rem;">
+        <button class="btn btn-secondary" onclick="shufflePuzzle()" style="width: auto; padding: 0.5rem 1.5rem; font-size: 0.9rem;">Reshuffle Puzzle</button>
+    </div>
+
+    <!-- Hidden Message revealed on solving -->
+    <div id="secretMessage" style="display: none; margin-top: 3rem; animation: fadeIn 1s ease-in-out;" class="glass-panel">
+        <h2 class="gradient-text title-serif" style="font-size: 2.2rem; margin-bottom: 1rem; color: var(--accent-yellow);">💖 YOU DID IT! 💖</h2>
+        <p style="font-size: 1.1rem; line-height: 1.8; color: var(--text-main);">
+            "True friends/loved ones are like puzzle pieces. They fit perfectly together, complete the picture, and make life beautiful. Thank you for being a part of my story."
+        </p>
+        <div style="margin-top: 2rem;">
+            <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.8rem 2.5rem;">Unlock the Memory Chest 📸</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Trivia Questions Configuration
+const quizQuestions = [
+    {
+        question: "What is my absolute favorite comfort food?",
+        options: ["Hot Spicy Ramen", "Creamy Cheesy Pizza", "Chocolate Waffles", "Double Cheeseburger"],
+        correct: 0
+    },
+    {
+        question: "If I could travel anywhere in the universe tomorrow, where would I go?",
+        options: ["Tokyo, Japan", "Paris, France", "Reykjavík, Iceland", "Santorini, Greece"],
+        correct: 2
+    },
+    {
+        question: "What is my weirdest daily habit?",
+        options: ["Drinking coffee at midnight", "Putting ketchup on popcorn", "Singing loudly in the shower", "Organizing clothes by color"],
+        correct: 0
+    },
+    {
+        question: "What music genre do I play when I need to focus?",
+        options: ["Lo-Fi / Synthwave", "Classical Piano", "Heavy Rock/Metal", "Acoustic Pop"],
+        correct: 0
+    },
+    {
+        question: "What is my ultimate spirit animal?",
+        options: ["A sleepy Koala", "A chaotic Golden Retriever", "A majestic Snow Leopard", "A wise Barn Owl"],
+        correct: 1
+    }
+];
+
+let currentQuestionIndex = 0;
+let currentScore = 0;
+
+// Initialize Trivia Quiz
+function loadQuestion() {
+    const questionText = document.getElementById("questionText");
+    const optionsContainer = document.getElementById("optionsContainer");
+    const progress = document.getElementById("quizProgress");
+    const scoreVal = document.getElementById("quizScore");
+
+    const q = quizQuestions[currentQuestionIndex];
+    questionText.textContent = q.question;
+    optionsContainer.innerHTML = "";
+    
+    progress.textContent = `Question ${currentQuestionIndex + 1} of ${quizQuestions.length}`;
+    scoreVal.textContent = `Score: ${currentScore}`;
+
+    q.options.forEach((opt, index) => {
+        const btn = document.createElement("button");
+        btn.className = "option-btn";
+        btn.textContent = opt;
+        btn.onclick = () => selectOption(index);
+        optionsContainer.appendChild(btn);
+    });
+}
+
+function selectOption(selectedIndex) {
+    const q = quizQuestions[currentQuestionIndex];
+    const buttons = document.querySelectorAll(".option-btn");
+    
+    // Disable all options
+    buttons.forEach((btn, idx) => {
+        btn.disabled = true;
+        if (idx === q.correct) {
+            btn.classList.add("correct");
+        } else if (idx === selectedIndex) {
+            btn.classList.add("wrong");
+        }
+    });
+
+    if (selectedIndex === q.correct) {
+        currentScore++;
+        triggerConfettiBurst(1);
+    }
+
+    setTimeout(() => {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < quizQuestions.length) {
+            loadQuestion();
+        } else {
+            finishQuiz();
+        }
+    }, 1500);
+}
+
+function finishQuiz() {
+    const quizPanel = document.getElementById("quizPanel");
+    
+    if (currentScore === quizQuestions.length) {
+        quizPanel.innerHTML = `
+            <h1 class="gradient-text title-serif" style="text-align: center; font-size: 3rem;">🏆 TRIVIA MASTER! 🏆</h1>
+            <p style="text-align: center; margin: 1rem 0 2rem; font-size: 1.2rem;">You got a perfect score of ${currentScore}/${quizQuestions.length}!</p>
+            <p style="text-align: center; color: var(--accent-blue);">Scroll down to solve the memory puzzle that just unlocked!</p>
+        `;
+        earnBadge("Trivia Master");
+        
+        // Show Puzzle
+        const puzzlePanel = document.getElementById("puzzlePanel");
+        puzzlePanel.style.display = "block";
+        initPuzzle();
+    } else {
+        quizPanel.innerHTML = `
+            <h1 class="gradient-text title-serif" style="text-align: center; font-size: 2.5rem;">Nice Attempt! 🌟</h1>
+            <p style="text-align: center; margin: 1rem 0 2rem; font-size: 1.1rem;">You scored ${currentScore}/${quizQuestions.length}. A perfect score is required to unlock the final secret.</p>
+            <div style="text-align: center;">
+                <button class="btn" onclick="retryQuiz()" style="width: auto; padding: 0.8rem 2rem;">Try Again</button>
+            </div>
+        `;
+    }
+}
+
+function retryQuiz() {
+    window.location.reload();
+}
+
+loadQuestion();
+
+
+// --- PHOTO PUZZLE GAME LOGIC ---
+const gridSize = 3;
+let boardState = []; // 0 to 8, 8 represents empty space
+const solvedState = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+let isPuzzleSolved = false;
+
+function initPuzzle() {
+    boardState = [...solvedState];
+    shufflePuzzle();
+}
+
+function shufflePuzzle() {
+    isPuzzleSolved = false;
+    document.getElementById("secretMessage").style.display = "none";
+    
+    // Perform random moves to guarantee solvability
+    for (let i = 0; i < 100; i++) {
+        const emptyIndex = boardState.indexOf(8);
+        const validMoves = getValidMoves(emptyIndex);
+        const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
+        
+        // Swap empty tile and random adjacent tile
+        boardState[emptyIndex] = boardState[randomMove];
+        boardState[randomMove] = 8;
+    }
+    
+    renderPuzzleBoard();
+}
+
+function getValidMoves(index) {
+    const row = Math.floor(index / gridSize);
+    const col = index % gridSize;
+    const moves = [];
+    
+    if (row > 0) moves.push(index - gridSize); // Move down (from top)
+    if (row < gridSize - 1) moves.push(index + gridSize); // Move up (from bottom)
+    if (col > 0) moves.push(index - 1); // Move right (from left)
+    if (col < gridSize - 1) moves.push(index + 1); // Move left (from right)
+    
+    return moves;
+}
+
+function renderPuzzleBoard() {
+    const board = document.getElementById("puzzleBoard");
+    board.innerHTML = "";
+    
+    boardState.forEach((piece, index) => {
+        const cell = document.createElement("div");
+        cell.className = "puzzle-piece";
+        
+        if (piece === 8) {
+            cell.classList.add("empty");
+        } else {
+            // Draw a beautiful custom color gradient slice as our puzzle image
+            // This is robust, doesn't require downloading real images, and looks premium
+            const rowVal = Math.floor(piece / gridSize);
+            const colVal = piece % gridSize;
+            
+            // Generate visual style with CSS background coordinates
+            cell.style.background = `linear-gradient(135deg, var(--accent), var(--accent-blue), var(--accent-yellow))`;
+            cell.style.backgroundSize = "300px 300px";
+            
+            // Offset coordinates for slicing
+            const xPercent = (colVal / (gridSize - 1)) * 100;
+            const yPercent = (rowVal / (gridSize - 1)) * 100;
+            cell.style.backgroundPosition = `${xPercent}% ${yPercent}%`;
+            
+            // Put slice numbers so they know where they are
+            cell.style.display = "flex";
+            cell.style.alignItems = "center";
+            cell.style.justifyContent = "center";
+            cell.style.fontSize = "1.5rem";
+            cell.style.fontWeight = "bold";
+            cell.style.color = "white";
+            cell.style.textShadow = "0 2px 4px rgba(0,0,0,0.5)";
+            cell.textContent = piece + 1;
+            
+            cell.onclick = () => handlePieceClick(index);
+        }
+        
+        board.appendChild(cell);
+    });
+}
+
+function handlePieceClick(index) {
+    if (isPuzzleSolved) return;
+    
+    const emptyIndex = boardState.indexOf(8);
+    const validMoves = getValidMoves(emptyIndex);
+    
+    if (validMoves.includes(index)) {
+        // Swap pieces
+        boardState[emptyIndex] = boardState[index];
+        boardState[index] = 8;
+        
+        renderPuzzleBoard();
+        checkPuzzleSolved();
+    }
+}
+
+function checkPuzzleSolved() {
+    const isSolved = boardState.every((val, idx) => val === solvedState[idx]);
+    
+    if (isSolved) {
+        isPuzzleSolved = true;
+        
+        // Make the empty cell look like the final piece (9)
+        const emptyCell = document.querySelector(".puzzle-piece.empty");
+        if (emptyCell) {
+            emptyCell.classList.remove("empty");
+            emptyCell.style.background = `linear-gradient(135deg, var(--accent), var(--accent-blue), var(--accent-yellow))`;
+            emptyCell.style.backgroundSize = "300px 300px";
+            emptyCell.style.backgroundPosition = "100% 100%";
+            emptyCell.style.display = "flex";
+            emptyCell.style.alignItems = "center";
+            emptyCell.style.justifyContent = "center";
+            emptyCell.style.fontSize = "1.5rem";
+            emptyCell.style.fontWeight = "bold";
+            emptyCell.style.color = "white";
+            emptyCell.style.textShadow = "0 2px 4px rgba(0,0,0,0.5)";
+            emptyCell.textContent = "9";
+        }
+        
+        // Show Secret message
+        document.getElementById("secretMessage").style.display = "block";
+        triggerFireworks(5);
+        earnBadge("Puzzle Master");
+    }
+}
+</script>
+{% endblock %}

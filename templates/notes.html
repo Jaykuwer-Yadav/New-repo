@@ -1,0 +1,114 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Birthday Notes & Letters - Birthday Memories{% endblock %}
+
+{% block content %}
+
+{% if user_role == 'admin' %}
+<!-- Admin: Add Note / Birthday Letter Form -->
+<div class="glass-panel" style="margin-bottom: 2.5rem;">
+    <h2 class="gradient-text title-serif" style="font-size: 2.2rem; margin-bottom: 0.5rem; text-align: center;">Write a Birthday Letter / Note 💌</h2>
+    <p style="text-align: center; margin-bottom: 2rem; color: var(--text-muted);">
+        Leave heartfelt birthday wishes, letters, and memory notes for the birthday recipient.
+    </p>
+
+    <form action="{{ url_for('add_note') }}" method="POST" class="auth-form">
+        <div class="form-grid-2col" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+            
+            <div class="form-group recipient-select-group">
+                <label for="note-user" class="recipient-select-label">
+                    <span>👤</span> Birthday Recipient
+                </label>
+                <select id="note-user" name="user_id" required class="recipient-select-input">
+                    <option value="" disabled selected>✨ Select recipient...</option>
+                    {% for u in users %}
+                        <option value="{{ u.id }}">{{ u.display_name }} ({{ u.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="sender-name">Your Name / From (Sender)</label>
+                <input type="text" id="sender-name" name="sender_name" placeholder="e.g. Best Friend, Mom & Dad, Alex" required>
+            </div>
+
+        </div>
+
+        <div class="form-grid-2col" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+            <div class="form-group">
+                <label for="note-title">Letter / Note Title</label>
+                <input type="text" id="note-title" name="title" placeholder="e.g. Happy Birthday to My Favorite Human!" required>
+            </div>
+
+            <div class="form-group">
+                <label for="note-icon">Theme Icon</label>
+                <select id="note-icon" name="icon" style="cursor: pointer;">
+                    <option value="💌" selected>💌 Love Letter</option>
+                    <option value="🎂">🎂 Birthday Cake</option>
+                    <option value="✨">✨ Magical Sparkle</option>
+                    <option value="💖">💖 Warm Heart</option>
+                    <option value="🌟">🌟 Shining Star</option>
+                    <option value="🎁">🎁 Secret Gift Note</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="note-msg">Heartfelt Birthday Message / Note</label>
+            <textarea id="note-msg" name="message" rows="4" placeholder="Write your heartfelt note, wishes, or unforgettable stories here..." required></textarea>
+        </div>
+
+        <button type="submit" class="btn" style="margin-top: 1rem;">Send Birthday Note 💌</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Notes & Letters Showcase -->
+<div class="glass-panel">
+    <div style="text-align: center; margin-bottom: 2.5rem;">
+        <span class="badge-pill">💌 Warm Wishes & Letters</span>
+        <h1 class="gradient-text title-serif" style="font-size: 3rem; margin: 0.8rem 0 0.5rem;">Birthday Letters & Notes</h1>
+        <p style="color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto;">
+            Personal messages, warm wishes, and memory notes written especially for the celebration.
+        </p>
+    </div>
+
+    {% if not notes %}
+        <div style="text-align: center; padding: 4rem 0; color: var(--text-muted);">
+            <span style="font-size: 4.5rem; display: block; margin-bottom: 1rem;">📮</span>
+            <p style="font-size: 1.2rem;">No notes have been added yet.</p>
+            {% if user_role == 'admin' %}
+            <p style="font-size: 0.95rem; color: var(--accent-yellow); margin-top: 0.5rem;">Write the first birthday letter using the form above!</p>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="notes-grid">
+            {% for note in notes %}
+            <div class="note-card glass-panel">
+                <div class="note-card-header">
+                    <span class="note-icon-badge">{{ note.icon or '💌' }}</span>
+                    <div class="note-meta">
+                        <span class="note-sender">From: {{ note.sender_name }}</span>
+                        {% if user_role == 'admin' and note.recipient_name %}
+                        <span class="note-recipient-tag">For: {{ note.recipient_name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <h3 class="note-title">{{ note.title }}</h3>
+                <p class="note-message">{{ note.message }}</p>
+
+                <div class="note-card-footer">
+                    <span class="note-date">🗓️ {{ note.created_at[:10] if note.created_at else 'Special Day' }}</span>
+                    {% if user_role == 'admin' %}
+                    <form action="{{ url_for('delete_note', note_id=note.id) }}" method="POST" onsubmit="return confirm('Delete this note?');" style="display: inline;">
+                        <button type="submit" class="delete-note-btn" title="Delete Note">🗑️</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

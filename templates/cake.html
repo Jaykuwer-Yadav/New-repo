@@ -1,0 +1,160 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Blow the Cake - Birthday Memories{% endblock %}
+
+{% block content %}
+<div class="glass-panel cake-container" style="text-align: center;">
+    <span class="badge-pill">🎂 Interactive Ceremony</span>
+    <h1 class="gradient-text title-serif" style="font-size: 3rem; margin: 0.8rem 0 0.5rem;">Blow Out the Candles</h1>
+    <p style="color: var(--text-muted); font-size: 1.1rem;">Blow into your microphone or tap the cake to blow out the virtual candles!</p>
+
+    <!-- The Cake Layout -->
+    <div class="cake" onclick="manualBlow()" title="Tap to blow out candles!">
+        <div class="icing"></div>
+        <div class="drip drip-1"></div>
+        <div class="drip drip-2"></div>
+        <div class="drip drip-3"></div>
+        <div class="drip drip-4"></div>
+        
+        <!-- Candle & Flame -->
+        <div class="candle">
+            <div class="flame" id="cakeFlame"></div>
+        </div>
+    </div>
+
+    <!-- Microphone Meter -->
+    <div id="micStatusContainer" style="margin-top: 3rem; display: flex; flex-direction: column; align-items: center;">
+        <span class="mic-status" id="micStatusLabel">Requesting Microphone Access...</span>
+        <div class="mic-bar-container">
+            <div class="mic-bar" id="micVolumeBar"></div>
+        </div>
+        <small style="color: var(--text-muted); margin-top: 0.5rem; font-size: 0.85rem;">Tip: If mic is unavailable, simply click or tap the cake!</small>
+    </div>
+
+    <!-- Success Message (Initially Hidden) -->
+    <div id="successMsg" style="display: none; margin-top: 3rem; animation: fadeIn 1s ease-in-out;">
+        <h2 class="gradient-text title-serif" style="font-size: 2.4rem; margin-bottom: 0.8rem;">🎉 WISH MADE & LOCKED IN! 🎂</h2>
+        <p style="font-size: 1.15rem; margin-bottom: 2rem; color: var(--text-main);">
+            You successfully blew out the candles! May all your birthday wishes come true!
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.9rem 2.2rem;">Visit Memory Chest 📸</a>
+            <button class="btn btn-secondary" onclick="relightCandle()" style="width: auto; padding: 0.9rem 2.2rem;">Relight Candles 🕯️</button>
+            <button class="btn" onclick="playBirthdaySongDirect()" style="width: auto; padding: 0.9rem 2.2rem; background: linear-gradient(135deg, var(--accent-yellow), #ff9d00); color: #000;">
+                🎵 Play Birthday Song!
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let audioContext = null;
+let analyser = null;
+let microphone = null;
+let isExtinguished = false;
+
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then(stream => {
+            initAudioAnalyser(stream);
+        })
+        .catch(err => {
+            console.warn("Microphone access denied or not supported.", err);
+            document.getElementById("micStatusLabel").textContent = "Microphone access disabled. Click the cake to blow!";
+            document.getElementById("micVolumeBar").style.width = "0%";
+        });
+} else {
+    document.getElementById("micStatusLabel").textContent = "Microphone not supported. Click the cake to blow!";
+}
+
+function initAudioAnalyser(stream) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    microphone = audioContext.createMediaStreamSource(stream);
+    
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.3;
+    microphone.connect(analyser);
+    
+    document.getElementById("micStatusLabel").textContent = "🎤 Listening... Blow hard into your mic!";
+    
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    let blowStreak = 0;
+    
+    function checkVolume() {
+        if (isExtinguished) return;
+        analyser.getByteFrequencyData(dataArray);
+        
+        let total = 0;
+        for (let i = 0; i < bufferLength; i++) { total += dataArray[i]; }
+        const average = total / bufferLength;
+        
+        const visualPercentage = Math.min(100, (average / 80) * 100);
+        document.getElementById("micVolumeBar").style.width = `${visualPercentage}%`;
+        
+        if (average > 55) {
+            blowStreak++;
+            if (blowStreak > 4) {
+                extinguishCandle();
+            }
+        } else {
+            blowStreak = Math.max(0, blowStreak - 1);
+        }
+        requestAnimationFrame(checkVolume);
+    }
+    checkVolume();
+}
+
+function extinguishCandle() {
+    if (isExtinguished) return;
+    isExtinguished = true;
+    
+    const flame = document.getElementById("cakeFlame");
+    flame.classList.add("extinguished");
+    
+    document.getElementById("micStatusContainer").style.display = "none";
+    document.getElementById("successMsg").style.display = "block";
+    
+    if (typeof triggerConfettiBurst === "function") {
+        triggerConfettiBurst(3.5);
+    }
+    if (typeof earnBadge === "function") {
+        earnBadge("Cake Eater");
+    }
+    
+    // Auto start celebrating with birthday music
+    setTimeout(() => {
+        if (typeof toggleBirthdayMusic === "function" && !window.isBirthdayMusicPlaying) {
+            toggleBirthdayMusic();
+        }
+    }, 600);
+}
+
+function relightCandle() {
+    isExtinguished = false;
+    const flame = document.getElementById("cakeFlame");
+    flame.classList.remove("extinguished");
+    document.getElementById("micStatusContainer").style.display = "flex";
+    document.getElementById("successMsg").style.display = "none";
+    
+    if (audioContext && audioContext.state === "suspended") {
+        audioContext.resume();
+    }
+}
+
+function manualBlow() {
+    if (!isExtinguished) {
+        extinguishCandle();
+    }
+}
+
+function playBirthdaySongDirect() {
+    if (typeof toggleBirthdayMusic === "function") {
+        toggleBirthdayMusic();
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Login - Birthday Memories Vault{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card glass-panel">
+        
+        <!-- Glowing Header with Icon -->
+        <div class="auth-header">
+            <div class="auth-badge-icon">🎂</div>
+            <span class="badge-pill">Private Birthday Vault</span>
+            <h1 class="gradient-text title-serif auth-title">Welcome Back</h1>
+            <p class="auth-subtitle">Enter your private login credentials to access the celebration.</p>
+        </div>
+
+        <form action="{{ url_for('login') }}" method="POST" class="auth-form">
+            <div class="form-group">
+                <label for="login-email">
+                    <span class="label-icon">✉️</span> Email Address (Login ID)
+                </label>
+                <input type="email" id="login-email" name="email" placeholder="name@example.com" required autocomplete="email">
+            </div>
+            
+            <div class="form-group">
+                <label for="login-password">
+                    <span class="label-icon">🔑</span> Password
+                </label>
+                <div class="input-wrapper">
+                    <input type="password" id="login-password" name="password" placeholder="Enter your password..." required autocomplete="current-password">
+                    <button type="button" class="toggle-password-btn" title="Toggle password visibility">👁️</button>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn auth-submit-btn">
+                <span>Unlock Birthday Vault</span>
+                <span class="btn-arrow">✨</span>
+            </button>
+        </form>
+
+        <!-- Quick Demo Fill Helpers for Convenience -->
+        <div class="auth-quick-fill">
+            <span class="quick-fill-label">Quick Demo Access:</span>
+            <div class="quick-chips">
+                <button type="button" class="quick-chip admin-chip" onclick="fillCredentials('admin@bday.com', 'admin123')">
+                    👑 Admin Login
+                </button>
+                <button type="button" class="quick-chip user-chip" onclick="fillCredentials('jay@bday.com', 'jay123')">
+                    🎉 Jay (User)
+                </button>
+            </div>
+        </div>
+
+        <div class="auth-footer-note">
+            <span>🔒 Protected Private Vault • Credentials created by Admin</span>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function fillCredentials(email, pass) {
+    const emailInput = document.getElementById("login-email");
+    const passInput = document.getElementById("login-password");
+    if (emailInput && passInput) {
+        emailInput.value = email;
+        passInput.value = pass;
+        emailInput.focus();
+        if (typeof triggerConfettiBurst === "function") {
+            triggerConfettiBurst(1.0);
+        }
+    }
+}
+</script>
+{% endblock %}

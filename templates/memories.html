@@ -1,0 +1,264 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Memory Chest - Birthday Memories{% endblock %}
+
+{% block content %}
+
+{% if user_role == 'admin' %}
+<!-- Admin Upload Memory Form -->
+<div class="glass-panel" style="margin-bottom: 3rem;">
+    <h2 class="gradient-text title-serif" style="font-size: 2.2rem; margin-bottom: 0.5rem; text-align: center;">Add Memory to Chest 📸🎥</h2>
+    <p style="text-align: center; margin-bottom: 2rem; color: var(--text-muted);">
+        Upload photos or videos for birthday recipients and optionally lock them with passwords.
+    </p>
+
+    <form action="{{ url_for('upload_memory') }}" method="POST" enctype="multipart/form-data" class="upload-memory-form">
+        
+        <div class="form-grid-2col">
+            <div class="form-group">
+                <label for="mem-title">Memory Title</label>
+                <input type="text" id="mem-title" name="title" placeholder="e.g. Unforgettable Summer Trip" required>
+            </div>
+
+            <!-- Distinct Standout "Assign to User" Dropdown -->
+            <div class="form-group recipient-select-group">
+                <label for="mem-user" class="recipient-select-label">
+                    <span class="user-icon">👤</span> Assign to Birthday Recipient
+                </label>
+                <select id="mem-user" name="user_id" required class="recipient-select-input">
+                    <option value="" disabled selected>✨ Choose recipient to assign memory...</option>
+                    {% for u in users %}
+                        <option value="{{ u.id }}">{{ u.display_name }} ({{ u.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="mem-desc">Description / Heartfelt Message</label>
+            <textarea id="mem-desc" name="description" rows="3" placeholder="Write a heartwarming message or memory story..."></textarea>
+        </div>
+
+        <!-- Ask Admin: Is it Image or Video? Section Selection -->
+        <div class="form-group media-type-section">
+            <label style="font-size: 1rem; margin-bottom: 0.75rem; color: var(--accent-yellow);">
+                🎬 Memory Media Section Type (Image or Video)
+            </label>
+            <div class="media-type-selector">
+                <label class="media-type-pill active" id="pill-photo">
+                    <input type="radio" name="media_type" value="image" checked onchange="updateMediaChoice('image')">
+                    <span class="pill-icon">📸</span>
+                    <span class="pill-text">Photo / Image</span>
+                </label>
+                <label class="media-type-pill" id="pill-video">
+                    <input type="radio" name="media_type" value="video" onchange="updateMediaChoice('video')">
+                    <span class="pill-icon">🎥</span>
+                    <span class="pill-text">Video Recording</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Open File Input supporting all Image and Video formats -->
+        <div class="form-group file-upload-box">
+            <label for="mem-media" id="mediaUploadLabel">📂 Choose Photo or Video File</label>
+            <input type="file" id="mem-media" name="media" accept="image/*,video/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.ogv,.jpg,.jpeg,.png,.gif,.webp,.svg,.heic" required>
+            <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.4rem; display: block;">
+                All formats supported (MP4, MOV, WebM, MKV, AVI, JPG, PNG, GIF, WebP, etc. up to 64MB)
+            </small>
+        </div>
+        
+        <!-- Locked Option with Secondary Password -->
+        <div class="form-group lock-toggle-row">
+            <input type="checkbox" id="mem-locked" name="is_locked" onchange="toggleLockInput(this)">
+            <label for="mem-locked" style="margin-bottom: 0; cursor: pointer; font-weight: 600; color: var(--text-main);">
+                🔒 Lock this memory with a secondary password / secret key
+            </label>
+        </div>
+        
+        <div class="form-group" id="lockPasswordContainer" style="display: none; animation: fadeIn 0.4s ease-in-out;">
+            <label for="mem-lock-password">Card Unlock Password</label>
+            <div class="input-wrapper">
+                <input type="password" id="mem-lock-password" name="lock_password" placeholder="Set password to unlock this specific card...">
+                <button type="button" class="toggle-password-btn">👁️</button>
+            </div>
+        </div>
+
+        <button type="submit" class="btn" style="margin-top: 1.5rem;">Add Memory to Chest 🚀</button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Memories Gallery -->
+<div class="glass-panel">
+    <h1 class="gradient-text title-serif" style="font-size: 2.8rem; margin-bottom: 0.5rem; text-align: center;">Memory Chest 💎</h1>
+    <p style="text-align: center; margin-bottom: 2.5rem; color: var(--text-muted);">A secure vault of precious times, moments, and videos.</p>
+
+    {% if not memories %}
+        <div style="text-align: center; padding: 4rem 0; color: var(--text-muted);">
+            <span style="font-size: 4.5rem; display: block; margin-bottom: 1rem;">📭</span>
+            <p style="font-size: 1.2rem;">The memory chest is empty right now.</p>
+            {% if user_role == 'admin' %}
+            <p style="font-size: 0.95rem; color: var(--accent-yellow); margin-top: 0.5rem;">Upload the first photo or video using the form above!</p>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="gallery-grid">
+            {% for memory in memories %}
+                {% if memory.is_locked %}
+                    <!-- Locked Memory Card -->
+                    <div class="memory-card locked" id="memory-{{ memory.id }}">
+                        <div class="image-container">
+                            <div class="lock-overlay" id="overlay-{{ memory.id }}">
+                                <span class="lock-icon">🔒</span>
+                                <span style="font-size: 0.95rem; font-weight: 600; color: var(--accent-pink);">Locked Memory</span>
+                                <div class="unlock-form">
+                                    <input type="password" placeholder="Enter password..." id="pw-{{ memory.id }}">
+                                    <button class="btn" onclick="unlockCard('{{ memory.id }}')" style="padding: 0.55rem; font-size: 0.9rem; border-radius: 8px; margin-top: 0.25rem;">Unlock 🔓</button>
+                                </div>
+                                <span class="unlock-error" id="error-{{ memory.id }}" style="color: #ff4d4d; font-size: 0.8rem; display: none;">Wrong password</span>
+                            </div>
+                            
+                            <!-- Media container populated after unlock -->
+                            <div id="media-slot-{{ memory.id }}" style="width: 100%; height: 100%; display: none;"></div>
+                            
+                            {% if user_role != 'admin' %}
+                            <div class="protection-overlay"></div>
+                            {% endif %}
+                        </div>
+                        <div class="memory-info">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+                                <h3 class="memory-title">{{ memory.title }}</h3>
+                                {% if memory.is_video %}
+                                <span class="media-type-badge">🎥 Video</span>
+                                {% else %}
+                                <span class="media-type-badge">📸 Photo</span>
+                                {% endif %}
+                            </div>
+                            {% if user_role == 'admin' and memory.recipient_name %}
+                            <p style="font-size: 0.8rem; color: var(--accent-blue); margin-bottom: 0.3rem;">For: {{ memory.recipient_name }}</p>
+                            {% endif %}
+                            <p class="memory-desc" id="desc-{{ memory.id }}">🔒 Unlock with password or secondary key to view.</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- Unlocked Memory Card -->
+                    <div class="memory-card">
+                        <div class="image-container">
+                            {% if memory.is_video %}
+                            <video src="{{ memory.media_path }}" controls playsinline preload="metadata" class="memory-img memory-video"></video>
+                            {% else %}
+                            <img src="{{ memory.media_path }}" alt="{{ memory.title }}" class="memory-img">
+                            {% endif %}
+                            
+                            {% if user_role != 'admin' %}
+                            <div class="protection-overlay"></div>
+                            {% endif %}
+                        </div>
+                        <div class="memory-info">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+                                <h3 class="memory-title">{{ memory.title }}</h3>
+                                {% if memory.is_video %}
+                                <span class="media-type-badge">🎥 Video</span>
+                                {% else %}
+                                <span class="media-type-badge">📸 Photo</span>
+                                {% endif %}
+                            </div>
+                            {% if user_role == 'admin' and memory.recipient_name %}
+                            <p style="font-size: 0.8rem; color: var(--accent-blue); margin-bottom: 0.3rem;">For: {{ memory.recipient_name }}</p>
+                            {% endif %}
+                            <p class="memory-desc">{{ memory.description }}</p>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updateMediaChoice(type) {
+    const pillPhoto = document.getElementById("pill-photo");
+    const pillVideo = document.getElementById("pill-video");
+    const label = document.getElementById("mediaUploadLabel");
+    
+    if (type === 'video') {
+        pillVideo.classList.add("active");
+        pillPhoto.classList.remove("active");
+        if (label) label.textContent = "🎥 Choose Video File (MP4, MOV, WebM, MKV...)";
+    } else {
+        pillPhoto.classList.add("active");
+        pillVideo.classList.remove("active");
+        if (label) label.textContent = "📸 Choose Photo File (JPG, PNG, GIF, WebP...)";
+    }
+}
+
+function toggleLockInput(checkbox) {
+    const container = document.getElementById("lockPasswordContainer");
+    const input = document.getElementById("mem-lock-password");
+    if (checkbox.checked) {
+        container.style.display = "block";
+        input.required = true;
+    } else {
+        container.style.display = "none";
+        input.required = false;
+        input.value = "";
+    }
+}
+
+async function unlockCard(memoryId) {
+    const passwordInput = document.getElementById(`pw-${memoryId}`);
+    const password = passwordInput.value;
+    const errorSpan = document.getElementById(`error-${memoryId}`);
+    
+    if (!password) return;
+
+    try {
+        const response = await fetch("/api/unlock-memory", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ memory_id: memoryId, password: password })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.status === "success") {
+            const overlay = document.getElementById(`overlay-${memoryId}`);
+            const slot = document.getElementById(`media-slot-${memoryId}`);
+            const desc = document.getElementById(`desc-${memoryId}`);
+            
+            overlay.style.transition = "opacity 0.4s ease-out";
+            overlay.style.opacity = "0";
+            
+            setTimeout(() => {
+                overlay.style.display = "none";
+                slot.style.display = "block";
+                
+                if (result.is_video) {
+                    slot.innerHTML = `<video src="${result.media_path}" controls playsinline autoplay class="memory-img memory-video"></video>`;
+                } else {
+                    slot.innerHTML = `<img src="${result.media_path}" alt="Memory" class="memory-img">`;
+                }
+                
+                desc.textContent = result.description || "Unlocked memory!";
+                document.getElementById(`memory-${memoryId}`).classList.remove("locked");
+                if (typeof triggerConfettiBurst === "function") {
+                    triggerConfettiBurst(2.0);
+                }
+            }, 400);
+            
+        } else {
+            errorSpan.style.display = "block";
+            errorSpan.classList.add("shake");
+            passwordInput.value = "";
+            setTimeout(() => errorSpan.classList.remove("shake"), 500);
+        }
+    } catch (err) {
+        console.error("Error unlocking card:", err);
+        errorSpan.textContent = "Server error. Try again.";
+        errorSpan.style.display = "block";
+    }
+}
+</script>
+{% endblock %}

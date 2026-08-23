@@ -1,0 +1,123 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Countdown Timer - Birthday Memories{% endblock %}
+
+{% block content %}
+<div class="glass-panel timer-container">
+    <span class="badge-pill">⏳ Precision Countdown</span>
+    <h1 class="gradient-text title-serif" style="font-size: 3rem; margin: 0.8rem 0 0.5rem;">Awaiting the Clock ⏰</h1>
+    <p style="margin-bottom: 2rem; color: var(--text-muted); font-size: 1.1rem;">
+        Counting every second until the most awaited birthday moment!
+    </p>
+
+    {% if user_role == 'admin' %}
+    <div class="admin-timer-tools" style="margin-bottom: 2.5rem; display: flex; justify-content: center; align-items: center; gap: 1rem; flex-wrap: wrap; background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 16px; border: 1px dashed var(--panel-border);">
+        <label for="target-date" style="font-weight: 600; color: var(--accent-yellow);">👑 Admin Preview Target:</label>
+        <input type="datetime-local" id="target-date" style="width: auto; padding: 0.5rem 1rem;" onchange="updateTargetDate()">
+        <button class="btn btn-secondary" onclick="resetTo24h()" style="width: auto; padding: 0.5rem 1.2rem;">Reset (+24h)</button>
+    </div>
+    {% endif %}
+
+    <div class="countdown-box" id="countdownBox">
+        <div class="timer-segment"><div class="timer-val" id="days">00</div><div class="timer-lbl">Days</div></div>
+        <div class="timer-segment"><div class="timer-val" id="hours">00</div><div class="timer-lbl">Hours</div></div>
+        <div class="timer-segment"><div class="timer-val" id="minutes">00</div><div class="timer-lbl">Minutes</div></div>
+        <div class="timer-segment"><div class="timer-val" id="seconds">00</div><div class="timer-lbl">Seconds</div></div>
+    </div>
+
+    <div id="celebrationMsg" style="display: none; animation: fadeIn 1s ease-in-out; padding: 2rem 0;">
+        <h2 class="gradient-text title-serif" style="font-size: 3.2rem; margin-bottom: 1rem;">🎉 HAPPY BIRTHDAY, {{ display_name }}! 🎂</h2>
+        <p style="font-size: 1.3rem; margin-bottom: 2rem; color: var(--text-main);">The countdown is complete! The special moment is here!</p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a href="{{ url_for('cake') }}" class="btn" style="width: auto; padding: 1rem 3rem;">Blow Out the Candles! 🎂</a>
+            <button onclick="toggleBirthdayMusic()" class="btn btn-secondary" style="width: auto; padding: 1rem 2.5rem; border-color: var(--accent-yellow); color: var(--accent-yellow);">
+                🎵 Play Birthday Song
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let timerInterval = null;
+let targetTime = null;
+
+const isAdmin = {% if user_role == 'admin' %}true{% else %}false{% endif %};
+const dbBirthday = "{{ birthday_date }}";
+
+if (isAdmin) {
+    if (localStorage.getItem("timerTarget")) {
+        targetTime = new Date(localStorage.getItem("timerTarget")).getTime();
+        const picker = document.getElementById("target-date");
+        if (picker) { picker.value = formatDateForInput(new Date(targetTime)); }
+    } else { resetTo24h(); }
+} else {
+    if (dbBirthday) {
+        targetTime = new Date(dbBirthday).getTime();
+    } else {
+        const fallback = new Date();
+        fallback.setHours(fallback.getHours() + 24);
+        targetTime = fallback.getTime();
+    }
+}
+
+startTimer();
+
+function resetTo24h() {
+    const future = new Date();
+    future.setHours(future.getHours() + 24);
+    targetTime = future.getTime();
+    localStorage.setItem("timerTarget", future.toISOString());
+    const picker = document.getElementById("target-date");
+    if (picker) { picker.value = formatDateForInput(future); }
+    startTimer();
+}
+
+function updateTargetDate() {
+    const picker = document.getElementById("target-date");
+    if (!picker.value) return;
+    const dateVal = new Date(picker.value);
+    targetTime = dateVal.getTime();
+    localStorage.setItem("timerTarget", dateVal.toISOString());
+    startTimer();
+}
+
+function formatDateForInput(date) {
+    const tzoffset = date.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(date - tzoffset)).toISOString().slice(0, -1);
+    return localISOTime.substring(0, 16);
+}
+
+function startTimer() {
+    if (timerInterval) clearInterval(timerInterval);
+    const cdBox = document.getElementById("countdownBox");
+    const celebMsg = document.getElementById("celebrationMsg");
+    
+    function update() {
+        const now = Date.now();
+        const diff = targetTime - now;
+        if (diff <= 0) {
+            clearInterval(timerInterval);
+            cdBox.style.display = "none";
+            celebMsg.style.display = "block";
+            if (typeof triggerFireworks === "function") { triggerFireworks(5); }
+            if (typeof earnBadge === "function") { earnBadge("Time Traveler"); }
+            return;
+        }
+        cdBox.style.display = "flex";
+        celebMsg.style.display = "none";
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        document.getElementById("days").textContent = String(d).padStart(2, '0');
+        document.getElementById("hours").textContent = String(h).padStart(2, '0');
+        document.getElementById("minutes").textContent = String(m).padStart(2, '0');
+        document.getElementById("seconds").textContent = String(s).padStart(2, '0');
+    }
+    update();
+    timerInterval = setInterval(update, 1000);
+}
+</script>
+{% endblock %}

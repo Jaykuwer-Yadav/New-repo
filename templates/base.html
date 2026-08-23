@@ -1,0 +1,106 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Birthday Memories{% endblock %}</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Global CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Background Animated Particles -->
+    <div class="bg-particles" id="bgParticles"></div>
+
+    <header class="main-header">
+        <a href="{{ url_for('index') }}" class="logo">
+            <span class="emoji">🎂</span>
+            <span class="text">B'Day Memories</span>
+        </a>
+        
+        {% if is_logged_in %}
+        <nav class="nav-links">
+            <a href="{{ url_for('index') }}" class="nav-item">Dashboard</a>
+            <a href="{{ url_for('timer') }}" class="nav-item">Timer ⏳</a>
+            
+            {% if is_birthday_arrived or user_role == 'admin' %}
+            <a href="{{ url_for('cake') }}" class="nav-item">Blow Cake 🎂</a>
+            <a href="{{ url_for('notes') }}" class="nav-item">💌 Notes</a>
+            <a href="{{ url_for('memories') }}" class="nav-item">Memory Chest 📸</a>
+            {% else %}
+            <!-- Locked Tabs Before Birthday Time -->
+            <a href="{{ url_for('cake') }}" class="nav-item locked-nav-item" title="Unlocks on your Birthday!">Blow Cake 🔒</a>
+            <a href="{{ url_for('notes') }}" class="nav-item locked-nav-item" title="Unlocks on your Birthday!">Notes 🔒</a>
+            <a href="{{ url_for('memories') }}" class="nav-item locked-nav-item" title="Unlocks on your Birthday!">Memory Chest 🔒</a>
+            {% endif %}
+
+            {% if user_role == 'admin' %}
+            <a href="{{ url_for('admin_panel') }}" class="nav-item admin-nav-link">Admin Panel 👑</a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="nav-item logout-btn">Logout</a>
+        </nav>
+        {% endif %}
+    </header>
+
+    <!-- Floating Birthday Music Player -->
+    {% if is_logged_in %}
+    <div class="floating-music-player" id="musicPlayer">
+        <button class="music-btn" id="musicToggleBtn" onclick="toggleBirthdayMusic()" title="Play / Pause Birthday Song">
+            <span class="music-icon" id="musicIcon">🎵</span>
+            <div class="music-wave" id="musicWave">
+                <span></span><span></span><span></span><span></span>
+            </div>
+            <span class="music-label" id="musicLabel">Happy Birthday Song</span>
+        </button>
+    </div>
+    {% endif %}
+
+    <main class="container">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+
+    {% if is_logged_in and user_role != 'admin' %}
+    <!-- Copy & Inspector Protection for Standard Users -->
+    <script>
+        window.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('dragstart', e => {
+            if (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') {
+                e.preventDefault();
+            }
+        });
+        window.addEventListener('keydown', e => {
+            if (e.keyCode === 123) { e.preventDefault(); return false; }
+            if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 67 || e.keyCode === 74)) {
+                e.preventDefault(); return false;
+            }
+            if (e.ctrlKey && (e.keyCode === 83 || e.keyCode === 85)) {
+                e.preventDefault(); return false;
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+</html>
