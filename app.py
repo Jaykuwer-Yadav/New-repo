@@ -3,6 +3,7 @@
 import os
 import sys
 import glob
+import json
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
@@ -20,18 +21,28 @@ try:
 except ImportError:
     pass
 
-# Firebase Admin SDK Initialization
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "birthday_memories_secret_key_for_sessions_2026")
+app.config["UPLOAD_FOLDER"] = os.path.join("static", "uploads")
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64MB max upload
+
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+os.makedirs("templates", exist_ok=True)
+os.makedirs(os.path.join("static", "css"), exist_ok=True)
+os.makedirs(os.path.join("static", "js"), exist_ok=True)
+
+# ----------------------------------------------------
+# 1. FIREBASE ADMIN & CLOUD FIRESTORE INITIALIZATION
+# ----------------------------------------------------
 firebase_app = None
 firebase_db = None
 firebase_bucket = None
 
 try:
-    import json
     import firebase_admin
     from firebase_admin import credentials, firestore, storage
     
     cred = None
-    # 1. Check if Firebase JSON string is provided in Environment Variables (for Render/Production)
     env_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
     if env_creds:
         try:
@@ -40,7 +51,6 @@ try:
         except Exception as e:
             print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_JSON: {e}")
 
-    # 2. Check for local JSON key files (for Local Development)
     if not cred:
         key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
         if key_files and os.path.exists(key_files[0]):
@@ -60,16 +70,9 @@ try:
 except Exception as e:
     print(f"[Storage] Running with local SQLite backend (Firebase optional: {e})")
 
-app = Flask(__name__)
-app.secret_key = "birthday_memories_secret_key_for_sessions_2026"
-app.config["UPLOAD_FOLDER"] = os.path.join("static", "uploads")
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64MB max upload
-
-os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-os.makedirs("templates", exist_ok=True)
-os.makedirs(os.path.join("static", "css"), exist_ok=True)
-os.makedirs(os.path.join("static", "js"), exist_ok=True)
-
+# ----------------------------------------------------
+# 2. LOCAL SQLITE BACKUP INITIALIZATION
+# ----------------------------------------------------
 DB_PATH = "birthday.db"
 
 def get_db_connection():
@@ -77,7 +80,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
+def init_local_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
@@ -97,21 +100,6 @@ def init_db():
         )
     """)
     
-    for col_def in [
-        ("role", "TEXT DEFAULT 'user'"),
-        ("display_name", "TEXT"),
-        ("birthday_date", "TEXT"),
-        ("lock_key_hash", "TEXT"),
-        ("plain_password", "TEXT"),
-        ("plain_lock_key", "TEXT"),
-        ("profile_pic", "TEXT"),
-        ("scratch_reward", "TEXT")
-    ]:
-        try:
-            cursor.execute(f"ALTER TABLE users ADD COLUMN {col_def[0]} {col_def[1]}")
-        except sqlite3.OperationalError:
-            pass
-        
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS memories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,8 +110,7 @@ def init_db():
             is_video INTEGER DEFAULT 0,
             is_locked INTEGER DEFAULT 0,
             lock_password_hash TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     
@@ -135,8 +122,7 @@ def init_db():
             title TEXT NOT NULL,
             message TEXT NOT NULL,
             icon TEXT DEFAULT '💌',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -145,41 +131,182 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             badge_name TEXT NOT NULL,
-            badge_icon TEXT,
             earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
             UNIQUE(user_id, badge_name)
         )
     """)
     
-    admin_email = "admin@bday.com"
-    user_email = "jay@bday.com"
-    
-    admin_exists = cursor.execute("SELECT id FROM users WHERE email = ?", (admin_email,)).fetchone()
+    # Default Admin & Jay user accounts
+    admin_exists = cursor.execute("SELECT id FROM users WHERE email = 'admin@bday.com'").fetchone()
     if not admin_exists:
         cursor.execute(
             "INSERT INTO users (email, password_hash, plain_password, role, display_name, birthday_date) VALUES (?, ?, ?, ?, ?, ?)",
-            (admin_email, generate_password_hash("admin123"), "admin123", "admin", "Admin", None)
+            ("admin@bday.com", generate_password_hash("admin123"), "admin123", "admin", "Admin", None)
         )
     else:
-        cursor.execute("UPDATE users SET role = 'admin', plain_password = COALESCE(plain_password, 'admin123') WHERE email = ?", (admin_email,))
+        cursor.execute("UPDATE users SET plain_password = COALESCE(plain_password, 'admin123') WHERE email = 'admin@bday.com'")
         
-    user_exists = cursor.execute("SELECT id FROM users WHERE email = ?", (user_email,)).fetchone()
-    if not user_exists:
+    jay_exists = cursor.execute("SELECT id FROM users WHERE email = 'jay@bday.com'").fetchone()
+    if not jay_exists:
         default_bday = (datetime.now() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
         cursor.execute(
             "INSERT INTO users (email, password_hash, plain_password, role, display_name, birthday_date, plain_lock_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (user_email, generate_password_hash("jay123"), "jay123", "user", "Jay", default_bday, "secret123")
+            ("jay@bday.com", generate_password_hash("jay123"), "jay123", "user", "Jay", default_bday, "secret123")
         )
     else:
-        cursor.execute("UPDATE users SET plain_password = COALESCE(plain_password, 'jay123') WHERE email = ?", (user_email,))
+        cursor.execute("UPDATE users SET plain_password = COALESCE(plain_password, 'jay123') WHERE email = 'jay@bday.com'")
         
     conn.commit()
     conn.close()
 
-init_db()
+init_local_db()
 
-# --- HELPER FUNCTIONS ---
+# ----------------------------------------------------
+# 3. UNIFIED DATA ACCESS LAYER (FIRESTORE + SQLITE SYNC)
+# ----------------------------------------------------
+
+def get_user_by_email(email):
+    email = email.strip().lower()
+    # 1. Try Firestore
+    if firebase_db:
+        try:
+            docs = firebase_db.collection("users").where("email", "==", email).limit(1).get()
+            for doc in docs:
+                data = doc.to_dict()
+                data["id"] = data.get("id") or doc.id
+                return data
+        except Exception as e:
+            print(f"[Firestore] get_user_by_email fallback: {e}")
+            
+    # 2. Fallback to SQLite
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def get_user_by_id(user_id):
+    # 1. Try Firestore
+    if firebase_db:
+        try:
+            doc = firebase_db.collection("users").document(str(user_id)).get()
+            if doc.exists:
+                data = doc.to_dict()
+                data["id"] = data.get("id") or doc.id
+                return data
+            # Also search by numeric id field
+            docs = firebase_db.collection("users").where("id", "==", int(user_id)).limit(1).get()
+            for d in docs:
+                data = d.to_dict()
+                data["id"] = data.get("id") or d.id
+                return data
+        except Exception as e:
+            print(f"[Firestore] get_user_by_id fallback: {e}")
+            
+    # 2. Fallback to SQLite
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def get_all_standard_users():
+    # 1. Try Firestore
+    if firebase_db:
+        try:
+            docs = firebase_db.collection("users").where("role", "==", "user").get()
+            users_list = []
+            for doc in docs:
+                data = doc.to_dict()
+                data["id"] = data.get("id") or doc.id
+                users_list.append(data)
+            if users_list:
+                return sorted(users_list, key=lambda x: str(x.get("id", "")))
+        except Exception as e:
+            print(f"[Firestore] get_all_standard_users fallback: {e}")
+            
+    # 2. Fallback to SQLite
+    conn = get_db_connection()
+    users = conn.execute("SELECT * FROM users WHERE role = 'user' ORDER BY id DESC").fetchall()
+    conn.close()
+    return [dict(u) for u in users]
+
+def save_new_user(display_name, email, password, birthday_date, lock_key="", profile_pic=None, scratch_reward=""):
+    email = email.strip().lower()
+    pass_hash = generate_password_hash(password)
+    lock_hash = generate_password_hash(lock_key) if lock_key else None
+    
+    # Save to SQLite
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO users 
+           (email, password_hash, plain_password, role, display_name, birthday_date, lock_key_hash, plain_lock_key, profile_pic, scratch_reward) 
+           VALUES (?, ?, ?, 'user', ?, ?, ?, ?, ?, ?)""",
+        (email, pass_hash, password, display_name, birthday_date, lock_hash, lock_key if lock_key else None, profile_pic, scratch_reward)
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    # Save to Firestore permanently
+    if firebase_db:
+        try:
+            firebase_db.collection("users").document(str(user_id)).set({
+                "id": user_id,
+                "email": email,
+                "password_hash": pass_hash,
+                "plain_password": password,
+                "role": "user",
+                "display_name": display_name,
+                "birthday_date": birthday_date,
+                "lock_key_hash": lock_hash,
+                "plain_lock_key": lock_key if lock_key else None,
+                "profile_pic": profile_pic,
+                "scratch_reward": scratch_reward,
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+            print(f"[Firestore] User '{display_name}' saved permanently to cloud database!")
+        except Exception as e:
+            print(f"[Firestore] save_new_user error: {e}")
+            
+    return user_id
+
+def delete_user_by_id(user_id):
+    # SQLite
+    conn = get_db_connection()
+    conn.execute("DELETE FROM achievements WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM notes WHERE user_id = ?", (user_id,))
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    
+    # Firestore
+    if firebase_db:
+        try:
+            firebase_db.collection("users").document(str(user_id)).delete()
+        except Exception as e:
+            print(f"[Firestore] delete_user error: {e}")
+
+def update_user_profile_pic(user_id, photo_path):
+    conn = get_db_connection()
+    conn.execute("UPDATE users SET profile_pic = ? WHERE id = ?", (photo_path, user_id))
+    conn.commit()
+    conn.close()
+    
+    if firebase_db:
+        try:
+            firebase_db.collection("users").document(str(user_id)).set({
+                "profile_pic": photo_path,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+            print(f"[Firestore] User {user_id} profile_pic updated in cloud!")
+        except Exception as e:
+            print(f"[Firestore] update_user_profile_pic error: {e}")
+
+# ----------------------------------------------------
+# 4. HELPER FUNCTIONS & MIDDLEWARES
+# ----------------------------------------------------
+
 def is_logged_in():
     return "user_id" in session
 
@@ -200,7 +327,6 @@ def birthday_required(f):
     def decorated_function(*args, **kwargs):
         if not is_logged_in():
             return redirect(url_for("login"))
-        # Standard users are locked out of all tabs apart from timer until their birthday arrives
         if not is_birthday_arrived():
             flash("🔒 This section is locked! It will open when your birthday countdown reaches zero. ⏳", "info")
             return redirect(url_for("timer"))
@@ -219,23 +345,22 @@ def admin_required(f):
     return decorated_function
 
 def get_nearest_birthdays():
-    conn = get_db_connection()
-    users = conn.execute("SELECT id, display_name, email, birthday_date, profile_pic FROM users WHERE role = 'user' AND birthday_date IS NOT NULL").fetchall()
-    conn.close()
-    
+    users = get_all_standard_users()
     now = datetime.now()
     upcoming = []
     
     for u in users:
+        if not u.get("birthday_date"):
+            continue
         try:
             bdate = datetime.strptime(u["birthday_date"], "%Y-%m-%dT%H:%M")
             diff = bdate - now
             upcoming.append({
                 "id": u["id"],
-                "display_name": u["display_name"],
-                "email": u["email"],
-                "birthday_date": u["birthday_date"],
-                "profile_pic": u["profile_pic"],
+                "display_name": u.get("display_name") or u.get("email"),
+                "email": u.get("email"),
+                "birthday_date": u.get("birthday_date"),
+                "profile_pic": u.get("profile_pic"),
                 "diff_seconds": diff.total_seconds(),
                 "is_past": diff.total_seconds() <= 0,
                 "days_left": diff.days,
@@ -262,24 +387,26 @@ def inject_user():
         is_birthday_arrived=is_birthday_arrived()
     )
 
-# --- ROUTES ---
+# ----------------------------------------------------
+# 5. ROUTES
+# ----------------------------------------------------
 
 @app.route("/")
 def index():
     if not is_logged_in():
         return redirect(url_for("login"))
     
+    current_user = get_user_by_id(session["user_id"])
+    if current_user:
+        session["birthday_date"] = current_user.get("birthday_date")
+        session["display_name"] = current_user.get("display_name")
+        
     conn = get_db_connection()
     badges = conn.execute("SELECT badge_name, earned_at FROM achievements WHERE user_id = ?", (session["user_id"],)).fetchall()
-    current_user = conn.execute("SELECT id, birthday_date, display_name, profile_pic, scratch_reward FROM users WHERE id = ?", (session["user_id"],)).fetchone()
     note_count = conn.execute("SELECT COUNT(*) as cnt FROM notes WHERE user_id = ?", (session["user_id"],)).fetchone()["cnt"]
     recent_memories = conn.execute("SELECT * FROM memories WHERE user_id = ? ORDER BY created_at DESC LIMIT 3", (session["user_id"],)).fetchall()
     conn.close()
     
-    if current_user:
-        session["birthday_date"] = current_user["birthday_date"]
-        session["display_name"] = current_user["display_name"]
-        
     nearest_bday, all_upcoming = None, []
     if session.get("user_role") == "admin":
         nearest_bday, all_upcoming = get_nearest_birthdays()
@@ -310,16 +437,14 @@ def login():
             flash("Please enter both email and password.", "error")
             return render_template("login.html")
             
-        conn = get_db_connection()
-        user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        conn.close()
+        user = get_user_by_email(email)
         
         if user and check_password_hash(user["password_hash"], password):
             session["user_id"] = user["id"]
             session["user_email"] = user["email"]
-            session["user_role"] = user["role"]
-            session["display_name"] = user["display_name"] or user["email"].split("@")[0]
-            session["birthday_date"] = user["birthday_date"]
+            session["user_role"] = user.get("role", "user")
+            session["display_name"] = user.get("display_name") or user["email"].split("@")[0]
+            session["birthday_date"] = user.get("birthday_date")
             flash(f"Welcome back, {session['display_name']}! 🎉", "success")
             return redirect(url_for("index"))
         else:
@@ -327,18 +452,11 @@ def login():
             
     return render_template("login.html")
 
-@app.route("/signup", methods=["POST"])
-def signup():
-    flash("Public registration is disabled. Credentials must be obtained from the Admin.", "error")
-    return redirect(url_for("login"))
-
 @app.route("/logout")
 def logout():
     session.clear()
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
-
-# --- FEATURE PAGES WITH STRICT BIRTHDAY ACCESS CONTROL ---
 
 @app.route("/timer")
 def timer():
@@ -362,7 +480,7 @@ def notes():
             LEFT JOIN users u ON n.user_id = u.id 
             ORDER BY n.created_at DESC
         """).fetchall()
-        users_list = conn.execute("SELECT id, display_name, email FROM users WHERE role = 'user' ORDER BY display_name ASC").fetchall()
+        users_list = get_all_standard_users()
         conn.close()
         return render_template("notes.html", notes=notes_list, users=users_list)
     else:
@@ -384,7 +502,7 @@ def memories():
             LEFT JOIN users u ON m.user_id = u.id 
             ORDER BY m.created_at DESC
         """).fetchall()
-        users_list = conn.execute("SELECT id, display_name, email FROM users WHERE role = 'user' ORDER BY display_name ASC").fetchall()
+        users_list = get_all_standard_users()
         conn.close()
         return render_template("memories.html", memories=memories_list, users=users_list)
     else:
@@ -395,7 +513,9 @@ def memories():
         conn.close()
         return render_template("memories.html", memories=memories_list)
 
-# --- API ENDPOINTS ---
+# ----------------------------------------------------
+# 6. ACTION & API ENDPOINTS
+# ----------------------------------------------------
 
 @app.route("/api/upload-hero-photo", methods=["POST"])
 def upload_hero_photo():
@@ -405,7 +525,6 @@ def upload_hero_photo():
     target_user_id = session["user_id"]
     redirect_dest = request.form.get("redirect_to", "index")
     
-    # Admin can update hero photo for ANY user anytime
     if session.get("user_role") == "admin" and request.form.get("user_id"):
         target_user_id = request.form.get("user_id")
         
@@ -425,7 +544,6 @@ def upload_hero_photo():
     
     photo_path = f"/static/uploads/{unique_name}"
     
-    # Upload to Firebase Storage if connected
     if firebase_bucket:
         try:
             blob = firebase_bucket.blob(f"hero_photos/{unique_name}")
@@ -436,20 +554,7 @@ def upload_hero_photo():
         except Exception as e:
             print(f"[Firebase Storage] Hero upload notice: {e}")
     
-    conn = get_db_connection()
-    conn.execute("UPDATE users SET profile_pic = ? WHERE id = ?", (photo_path, target_user_id))
-    conn.commit()
-    conn.close()
-    
-    # Also update Firestore user profile pic if active
-    if firebase_db:
-        try:
-            firebase_db.collection("users").document(str(target_user_id)).set({
-                "profile_pic": photo_path,
-                "updated_at": firestore.SERVER_TIMESTAMP
-            }, merge=True)
-        except Exception as e:
-            print(f"[Firestore] Profile sync notice: {e}")
+    update_user_profile_pic(target_user_id, photo_path)
     
     flash("Hero portrait photo updated successfully! 📸", "success")
     return redirect(url_for(redirect_dest))
@@ -475,7 +580,6 @@ def add_note():
     conn.commit()
     conn.close()
     
-    # Sync with Firestore if active
     if firebase_db:
         try:
             firebase_db.collection("notes").add({
@@ -487,7 +591,7 @@ def add_note():
                 "created_at": firestore.SERVER_TIMESTAMP
             })
         except Exception as e:
-            print(f"Firestore note sync notice: {e}")
+            print(f"[Firestore] note sync notice: {e}")
     
     flash("Birthday Note & Letter added successfully! 💌", "success")
     return redirect(url_for("notes"))
@@ -570,7 +674,6 @@ def upload_memory():
     
     media_web_path = f"/static/uploads/{unique_filename}"
     
-    # Upload to Firebase Storage if available
     if firebase_bucket:
         try:
             blob = firebase_bucket.blob(f"memories/{unique_filename}")
@@ -579,7 +682,7 @@ def upload_memory():
             if blob.public_url:
                 media_web_path = blob.public_url
         except Exception as e:
-            print(f"Firebase Storage memory upload notice: {e}")
+            print(f"[Firebase Storage] Memory upload notice: {e}")
     
     lock_password_hash = None
     if is_locked and lock_password:
@@ -627,10 +730,8 @@ def unlock_memory():
     if memory["lock_password_hash"] and check_password_hash(memory["lock_password_hash"], password):
         unlocked = True
     else:
-        conn = get_db_connection()
-        user_data = conn.execute("SELECT lock_key_hash FROM users WHERE id = ?", (memory["user_id"],)).fetchone()
-        conn.close()
-        if user_data and user_data["lock_key_hash"] and check_password_hash(user_data["lock_key_hash"], password):
+        user_data = get_user_by_id(memory["user_id"])
+        if user_data and user_data.get("lock_key_hash") and check_password_hash(user_data["lock_key_hash"], password):
             unlocked = True
             
     if unlocked:
@@ -643,14 +744,14 @@ def unlock_memory():
     else:
         return jsonify({"status": "error", "message": "Incorrect password"}), 403
 
-# --- ADMIN PANEL ROUTES ---
+# ----------------------------------------------------
+# 7. ADMIN PANEL MANAGEMENT
+# ----------------------------------------------------
 
 @app.route("/admin")
 @admin_required
 def admin_panel():
-    conn = get_db_connection()
-    users_list = conn.execute("SELECT id, email, role, display_name, birthday_date, plain_password, plain_lock_key, profile_pic, scratch_reward FROM users WHERE role = 'user' ORDER BY id DESC").fetchall()
-    conn.close()
+    users_list = get_all_standard_users()
     nearest_bday, all_upcoming = get_nearest_birthdays()
     return render_template("admin.html", users=users_list, nearest_bday=nearest_bday, all_upcoming=all_upcoming)
 
@@ -668,10 +769,8 @@ def admin_create_user():
         flash("Display Name, Email, Password, and Birthday Date are required.", "error")
         return redirect(url_for("admin_panel"))
         
-    conn = get_db_connection()
-    existing = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    existing = get_user_by_email(email)
     if existing:
-        conn.close()
         flash("A user with that email already exists.", "error")
         return redirect(url_for("admin_panel"))
         
@@ -685,45 +784,33 @@ def admin_create_user():
             file.save(filepath)
             profile_pic = f"/static/uploads/{unique_name}"
             
-    password_hash = generate_password_hash(password)
-    lock_key_hash = generate_password_hash(user_lock_key) if user_lock_key else None
-    
     try:
-        conn.execute(
-            """INSERT INTO users 
-               (email, password_hash, plain_password, role, display_name, birthday_date, lock_key_hash, plain_lock_key, profile_pic, scratch_reward) 
-               VALUES (?, ?, ?, 'user', ?, ?, ?, ?, ?, ?)""",
-            (email, password_hash, password, display_name, birthday_date, lock_key_hash, user_lock_key if user_lock_key else None, profile_pic, scratch_reward)
+        save_new_user(
+            display_name=display_name,
+            email=email,
+            password=password,
+            birthday_date=birthday_date,
+            lock_key=user_lock_key,
+            profile_pic=profile_pic,
+            scratch_reward=scratch_reward
         )
-        conn.commit()
-        flash(f"Account for '{display_name}' created successfully! Credentials saved.", "success")
+        flash(f"Account for '{display_name}' created successfully! Saved permanently.", "success")
     except Exception as e:
         flash(f"Error creating user: {str(e)}", "error")
-    finally:
-        conn.close()
         
     return redirect(url_for("admin_panel"))
 
 @app.route("/admin/delete-user/<int:user_id>", methods=["POST"])
 @admin_required
 def admin_delete_user(user_id):
-    conn = get_db_connection()
     try:
-        conn.execute("DELETE FROM achievements WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM notes WHERE user_id = ?", (user_id,))
-        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        conn.commit()
+        delete_user_by_id(user_id)
         flash("User account, memories, and notes revoked.", "success")
     except Exception as e:
         flash(f"Error deleting user: {str(e)}", "error")
-    finally:
-        conn.close()
         
     return redirect(url_for("admin_panel"))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
-
