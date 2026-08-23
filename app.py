@@ -26,14 +26,27 @@ firebase_db = None
 firebase_bucket = None
 
 try:
+    import json
     import firebase_admin
     from firebase_admin import credentials, firestore, storage
     
-    # Locate any firebase admin sdk private key in directory
-    key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
-    if key_files and os.path.exists(key_files[0]):
-        cred = credentials.Certificate(key_files[0])
-        # Default bucket name for Firebase project
+    cred = None
+    # 1. Check if Firebase JSON string is provided in Environment Variables (for Render/Production)
+    env_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+    if env_creds:
+        try:
+            creds_dict = json.loads(env_creds)
+            cred = credentials.Certificate(creds_dict)
+        except Exception as e:
+            print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_JSON: {e}")
+
+    # 2. Check for local JSON key files (for Local Development)
+    if not cred:
+        key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
+        if key_files and os.path.exists(key_files[0]):
+            cred = credentials.Certificate(key_files[0])
+
+    if cred:
         bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
         firebase_app = firebase_admin.initialize_app(cred, {
             "storageBucket": bucket_name
