@@ -18,3 +18,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 migrate_db.py
+
+# SQLite Local Database
+*.db
+*.sqlite3
+
