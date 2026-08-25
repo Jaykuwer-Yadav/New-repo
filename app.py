@@ -201,12 +201,13 @@ def db_get_user_by_id(user_id):
 def db_get_all_standard_users():
     if firebase_db:
         try:
-            docs = firebase_db.collection("users").where(filter=firestore.FieldFilter("role", "==", "user")).get()
+            docs = firebase_db.collection("users").stream()
             users_list = []
             for doc in docs:
                 data = doc.to_dict()
                 data["id"] = data.get("id") or doc.id
-                users_list.append(data)
+                if data.get("role") != "admin":
+                    users_list.append(data)
             return sorted(users_list, key=lambda x: str(x.get("display_name", "")).lower())
         except Exception as e:
             print(f"[Firestore] get_all_standard_users error: {e}")
@@ -873,4 +874,5 @@ def admin_change_credentials():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
 
