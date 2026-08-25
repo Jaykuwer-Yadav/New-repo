@@ -127,7 +127,7 @@
                 <div class="washi-tape"></div>
                 
                 <!-- Clickable Polaroid Frame (Click anywhere on photo to upload) -->
-                <label for="hero_image" class="polaroid-photo-frame" style="cursor: pointer; display: block;" title="Click anywhere to upload or change your birthday photo!">
+                <div class="polaroid-photo-frame" onclick="openHeroPhotoPicker()" style="cursor: pointer; display: block;" title="Click anywhere to upload or change your birthday photo!">
                     {% if user_data and user_data.profile_pic %}
                     <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
                     {% elif recent_memories and recent_memories|length > 0 %}
@@ -145,15 +145,16 @@
                         <span style="font-size: 2rem;">📷</span>
                         <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">Change Photo</span>
                     </div>
-                </label>
+                </div>
                 
                 <!-- Direct Upload Button under Polaroid -->
-                <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" class="polaroid-photo-form" id="heroPhotoForm">
-                    <label for="hero_image" class="change-photo-btn-pill" title="Upload or change hero photo">
-                        <span>📷</span>
-                        <span>Upload / Change Photo</span>
-                    </label>
-                    <input type="file" id="hero_image" name="hero_image" accept="image/*" style="display: none;" onchange="document.getElementById('heroPhotoForm').submit();">
+                <button type="button" class="change-photo-btn-pill" onclick="openHeroPhotoPicker()" title="Upload or change hero photo">
+                    <span>📷</span>
+                    <span>Upload / Change Photo</span>
+                </button>
+
+                <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" id="heroPhotoForm" style="display: none;">
+                    <input type="file" id="heroImageInput" name="hero_image" accept="image/*" onchange="document.getElementById('heroPhotoForm').submit();">
                 </form>
             </div>
 
@@ -390,7 +391,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ==========================================
 // 2. Interactive Scratch Card Engine
 // ==========================================
-function initScratchCard() {
+function openHeroPhotoPicker() { const input = document.getElementById("heroImageInput"); if (input) input.click(); }`n`nfunction initScratchCard() {
     const canvas = document.getElementById("scratchCanvas");
     if (!canvas) return;
     
@@ -463,5 +464,6 @@ function initScratchCard() {
 }
 </script>
 {% endblock %}
+
 
 

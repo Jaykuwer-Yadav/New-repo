@@ -187,12 +187,15 @@ def fs_get_doc(collection, doc_id):
         print(f"[Firestore REST] fs_get_doc error: {e}")
         return None
 
-def fs_set_doc(collection, doc_id, data_dict):
+def fs_set_doc(collection, doc_id, data_dict, merge=True):
     token = get_auth_token()
     if not token:
         return False
     try:
         url = f"{firestore_base_url()}/{collection}/{doc_id}"
+        if merge and data_dict:
+            mask_params = "&".join([f"updateMask.fieldPaths={k}" for k in data_dict.keys()])
+            url = f"{url}?{mask_params}"
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         payload = dict_to_firestore(data_dict)
         resp = requests.patch(url, headers=headers, json=payload, timeout=10)
@@ -605,10 +608,19 @@ def upload_hero_photo():
     safe_name = secure_filename(file.filename)
     unique_name = f"hero_{target_user_id}_{int(datetime.now().timestamp())}_{safe_name}"
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
-    file.save(filepath)
     
-    photo_path = f"/static/uploads/{unique_name}"
+    # Read image content
+    file_bytes = file.read()
+    with open(filepath, "wb") as f:
+        f.write(file_bytes)
+        
+    # Generate Base64 Data URL for permanent 100% Cloud Firestore persistence
+    import base64
+    mime = file.mimetype or "image/jpeg"
+    b64_data = base64.b64encode(file_bytes).decode("utf-8")
+    photo_path = f"data:{mime};base64,{b64_data}"
     
+    # Also attempt Firebase Storage if active
     if firebase_bucket:
         try:
             blob = firebase_bucket.blob(f"hero_photos/{unique_name}")
@@ -859,4 +871,6 @@ def admin_change_credentials():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+
 
