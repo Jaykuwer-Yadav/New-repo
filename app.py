@@ -110,9 +110,11 @@ else:
     print("[Firebase] WARNING: No Firebase credentials found. Please set FIREBASE_CREDENTIALS_JSON in Render environment variables or add a Secret File.")
 
 def init_firestore():
+    if not firebase_db:
+        return
     try:
-        # Check / create Admin
-        admin_query = firebase_db.collection("users").where(filter=firestore.FieldFilter("email", "==", "admin@bday.com")).limit(1).get()
+        # Check if any admin exists in Firestore
+        admin_query = firebase_db.collection("users").where(filter=firestore.FieldFilter("role", "==", "admin")).limit(1).get()
         if not list(admin_query):
             firebase_db.collection("users").document("admin").set({
                 "id": "admin",
@@ -124,27 +126,7 @@ def init_firestore():
                 "birthday_date": None,
                 "created_at": firestore.SERVER_TIMESTAMP
             })
-            print("[Firestore] Default Admin (admin@bday.com / admin123) created!")
-
-        # Check / create Jay
-        jay_query = firebase_db.collection("users").where(filter=firestore.FieldFilter("email", "==", "jay@bday.com")).limit(1).get()
-        if not list(jay_query):
-            default_bday = (datetime.now() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
-            firebase_db.collection("users").document("jay").set({
-                "id": "jay",
-                "email": "jay@bday.com",
-                "password_hash": generate_password_hash("jay123"),
-                "plain_password": "jay123",
-                "role": "user",
-                "display_name": "Jay",
-                "birthday_date": default_bday,
-                "lock_key_hash": generate_password_hash("secret123"),
-                "plain_lock_key": "secret123",
-                "profile_pic": None,
-                "scratch_reward": "🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁",
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-            print("[Firestore] Default User (jay@bday.com / jay123) created!")
+            print("[Firestore] Default Admin initialized (admin@bday.com / admin123).")
     except Exception as e:
         print(f"[Firestore] init_firestore error: {e}")
 
@@ -776,6 +758,41 @@ def admin_delete_user(user_id):
         
     return redirect(url_for("admin_panel"))
 
+@app.route("/admin/change-credentials", methods=["POST"])
+@admin_required
+def admin_change_credentials():
+    new_email = request.form.get("new_email", "").strip().lower()
+    new_password = request.form.get("new_password", "").strip()
+    new_name = request.form.get("new_name", "").strip() or "Admin"
+    
+    if not new_email or not new_password:
+        flash("Email and new password are required.", "error")
+        return redirect(url_for("admin_panel"))
+        
+    admin_id = session.get("user_id", "admin")
+    pass_hash = generate_password_hash(new_password)
+    
+    if firebase_db:
+        try:
+            firebase_db.collection("users").document(str(admin_id)).set({
+                "id": str(admin_id),
+                "email": new_email,
+                "password_hash": pass_hash,
+                "plain_password": new_password,
+                "display_name": new_name,
+                "role": "admin",
+                "updated_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+            
+            session["user_email"] = new_email
+            session["display_name"] = new_name
+            flash("Admin credentials updated successfully! 🔑", "success")
+        except Exception as e:
+            flash(f"Error updating admin credentials: {str(e)}", "error")
+            
+    return redirect(url_for("admin_panel"))
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
