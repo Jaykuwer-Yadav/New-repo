@@ -4,7 +4,7 @@ import os
 import sys
 import glob
 import json
-import sqlite3
+import uuid
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -21,6 +21,9 @@ try:
 except ImportError:
     pass
 
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "birthday_memories_secret_key_for_sessions_2026")
 app.config["UPLOAD_FOLDER"] = os.path.join("static", "uploads")
@@ -32,276 +35,289 @@ os.makedirs(os.path.join("static", "css"), exist_ok=True)
 os.makedirs(os.path.join("static", "js"), exist_ok=True)
 
 # ----------------------------------------------------
-# 1. FIREBASE ADMIN & CLOUD FIRESTORE INITIALIZATION
+# 1. PURE FIREBASE INITIALIZATION
 # ----------------------------------------------------
 firebase_app = None
 firebase_db = None
 firebase_bucket = None
 
-try:
-    import firebase_admin
-    from firebase_admin import credentials, firestore, storage
-    
-    cred = None
-    env_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-    if env_creds:
-        try:
-            creds_dict = json.loads(env_creds)
-            cred = credentials.Certificate(creds_dict)
-        except Exception as e:
-            print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_JSON: {e}")
+cred = None
+env_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+if env_creds:
+    try:
+        cleaned_creds = env_creds.strip()
+        if (cleaned_creds.startswith("'{") and cleaned_creds.endswith("}'")) or (cleaned_creds.startswith('"{') and cleaned_creds.endswith('}"')):
+            cleaned_creds = cleaned_creds[1:-1]
+        creds_dict = json.loads(cleaned_creds)
+        cred = credentials.Certificate(creds_dict)
+        print("[Firebase] Loaded credentials from FIREBASE_CREDENTIALS_JSON environment variable.")
+    except Exception as e:
+        print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_JSON: {e}")
 
-    if not cred:
-        key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
-        if key_files and os.path.exists(key_files[0]):
+if not cred:
+    key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
+    if key_files and os.path.exists(key_files[0]):
+        try:
             cred = credentials.Certificate(key_files[0])
+            print(f"[Firebase] Loaded credentials from local file: {key_files[0]}")
+        except Exception as e:
+            print(f"[Firebase] Error loading local key file: {e}")
 
-    if cred:
-        bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
-        firebase_app = firebase_admin.initialize_app(cred, {
-            "storageBucket": bucket_name
-        })
-        firebase_db = firestore.client()
-        try:
-            firebase_bucket = storage.bucket()
-        except Exception:
-            firebase_bucket = None
-        print(f"[Firebase] Initialized successfully for project: {cred.project_id}")
-except Exception as e:
-    print(f"[Storage] Running with local SQLite backend (Firebase optional: {e})")
+if not cred:
+    raise RuntimeError("CRITICAL: Firebase service account credentials not found. Please provide FIREBASE_CREDENTIALS_JSON or a local serviceAccountKey.json file.")
 
-# ----------------------------------------------------
-# 2. LOCAL SQLITE BACKUP INITIALIZATION
-# ----------------------------------------------------
-DB_PATH = "birthday.db"
+bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
+try:
+    firebase_app = firebase_admin.initialize_app(cred, {
+        "storageBucket": bucket_name
+    })
+except Exception:
+    firebase_app = firebase_admin.get_app()
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+firebase_db = firestore.client()
+try:
+    firebase_bucket = storage.bucket()
+except Exception:
+    firebase_bucket = None
 
-def init_local_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            plain_password TEXT,
-            role TEXT DEFAULT 'user',
-            display_name TEXT,
-            birthday_date TEXT,
-            lock_key_hash TEXT,
-            plain_lock_key TEXT,
-            profile_pic TEXT,
-            scratch_reward TEXT DEFAULT '🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁'
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS memories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            media_path TEXT NOT NULL,
-            is_video INTEGER DEFAULT 0,
-            is_locked INTEGER DEFAULT 0,
-            lock_password_hash TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            sender_name TEXT NOT NULL,
-            title TEXT NOT NULL,
-            message TEXT NOT NULL,
-            icon TEXT DEFAULT '💌',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS achievements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            badge_name TEXT NOT NULL,
-            earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, badge_name)
-        )
-    """)
-    
-    # Default Admin & Jay user accounts
-    admin_exists = cursor.execute("SELECT id FROM users WHERE email = 'admin@bday.com'").fetchone()
-    if not admin_exists:
-        cursor.execute(
-            "INSERT INTO users (email, password_hash, plain_password, role, display_name, birthday_date) VALUES (?, ?, ?, ?, ?, ?)",
-            ("admin@bday.com", generate_password_hash("admin123"), "admin123", "admin", "Admin", None)
-        )
-    else:
-        cursor.execute("UPDATE users SET plain_password = COALESCE(plain_password, 'admin123') WHERE email = 'admin@bday.com'")
-        
-    jay_exists = cursor.execute("SELECT id FROM users WHERE email = 'jay@bday.com'").fetchone()
-    if not jay_exists:
-        default_bday = (datetime.now() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
-        cursor.execute(
-            "INSERT INTO users (email, password_hash, plain_password, role, display_name, birthday_date, plain_lock_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("jay@bday.com", generate_password_hash("jay123"), "jay123", "user", "Jay", default_bday, "secret123")
-        )
-    else:
-        cursor.execute("UPDATE users SET plain_password = COALESCE(plain_password, 'jay123') WHERE email = 'jay@bday.com'")
-        
-    conn.commit()
-    conn.close()
-
-init_local_db()
+print(f"[Firebase] Connected to Cloud Firestore & Storage for project: {cred.project_id}")
 
 # ----------------------------------------------------
-# 3. UNIFIED DATA ACCESS LAYER (FIRESTORE + SQLITE SYNC)
+# 2. FIRESTORE DATABASE INITIALIZATION (DEFAULT ACCOUNTS)
 # ----------------------------------------------------
 
-def get_user_by_email(email):
+def init_firestore():
+    try:
+        # Check / create Admin
+        admin_query = firebase_db.collection("users").where(filter=firestore.FieldFilter("email", "==", "admin@bday.com")).limit(1).get()
+        if not list(admin_query):
+            firebase_db.collection("users").document("admin").set({
+                "id": "admin",
+                "email": "admin@bday.com",
+                "password_hash": generate_password_hash("admin123"),
+                "plain_password": "admin123",
+                "role": "admin",
+                "display_name": "Admin",
+                "birthday_date": None,
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+            print("[Firestore] Default Admin (admin@bday.com / admin123) created!")
+
+        # Check / create Jay
+        jay_query = firebase_db.collection("users").where(filter=firestore.FieldFilter("email", "==", "jay@bday.com")).limit(1).get()
+        if not list(jay_query):
+            default_bday = (datetime.now() + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
+            firebase_db.collection("users").document("jay").set({
+                "id": "jay",
+                "email": "jay@bday.com",
+                "password_hash": generate_password_hash("jay123"),
+                "plain_password": "jay123",
+                "role": "user",
+                "display_name": "Jay",
+                "birthday_date": default_bday,
+                "lock_key_hash": generate_password_hash("secret123"),
+                "plain_lock_key": "secret123",
+                "profile_pic": None,
+                "scratch_reward": "🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁",
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+            print("[Firestore] Default User (jay@bday.com / jay123) created!")
+    except Exception as e:
+        print(f"[Firestore] init_firestore error: {e}")
+
+init_firestore()
+
+# ----------------------------------------------------
+# 3. PURE FIRESTORE DATA ACCESS METHODS
+# ----------------------------------------------------
+
+def db_get_user_by_email(email):
     email = email.strip().lower()
-    # 1. Try Firestore
-    if firebase_db:
-        try:
-            docs = firebase_db.collection("users").where("email", "==", email).limit(1).get()
-            for doc in docs:
-                data = doc.to_dict()
-                data["id"] = data.get("id") or doc.id
-                return data
-        except Exception as e:
-            print(f"[Firestore] get_user_by_email fallback: {e}")
-            
-    # 2. Fallback to SQLite
-    conn = get_db_connection()
-    user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-    conn.close()
-    return dict(user) if user else None
+    docs = firebase_db.collection("users").where(filter=firestore.FieldFilter("email", "==", email)).limit(1).get()
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = data.get("id") or doc.id
+        return data
+    return None
 
-def get_user_by_id(user_id):
-    # 1. Try Firestore
-    if firebase_db:
-        try:
-            doc = firebase_db.collection("users").document(str(user_id)).get()
-            if doc.exists:
-                data = doc.to_dict()
-                data["id"] = data.get("id") or doc.id
-                return data
-            # Also search by numeric id field
-            docs = firebase_db.collection("users").where("id", "==", int(user_id)).limit(1).get()
-            for d in docs:
-                data = d.to_dict()
-                data["id"] = data.get("id") or d.id
-                return data
-        except Exception as e:
-            print(f"[Firestore] get_user_by_id fallback: {e}")
-            
-    # 2. Fallback to SQLite
-    conn = get_db_connection()
-    user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
-    conn.close()
-    return dict(user) if user else None
+def db_get_user_by_id(user_id):
+    if not user_id:
+        return None
+    user_id_str = str(user_id)
+    doc = firebase_db.collection("users").document(user_id_str).get()
+    if doc.exists:
+        data = doc.to_dict()
+        data["id"] = data.get("id") or doc.id
+        return data
+    
+    # Try finding by 'id' attribute
+    docs = firebase_db.collection("users").where(filter=firestore.FieldFilter("id", "==", user_id)).limit(1).get()
+    for d in docs:
+        data = d.to_dict()
+        data["id"] = data.get("id") or d.id
+        return data
+    return None
 
-def get_all_standard_users():
-    # 1. Try Firestore
-    if firebase_db:
-        try:
-            docs = firebase_db.collection("users").where("role", "==", "user").get()
-            users_list = []
-            for doc in docs:
-                data = doc.to_dict()
-                data["id"] = data.get("id") or doc.id
-                users_list.append(data)
-            if users_list:
-                return sorted(users_list, key=lambda x: str(x.get("id", "")))
-        except Exception as e:
-            print(f"[Firestore] get_all_standard_users fallback: {e}")
-            
-    # 2. Fallback to SQLite
-    conn = get_db_connection()
-    users = conn.execute("SELECT * FROM users WHERE role = 'user' ORDER BY id DESC").fetchall()
-    conn.close()
-    return [dict(u) for u in users]
+def db_get_all_standard_users():
+    docs = firebase_db.collection("users").where(filter=firestore.FieldFilter("role", "==", "user")).get()
+    users_list = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = data.get("id") or doc.id
+        users_list.append(data)
+    return sorted(users_list, key=lambda x: str(x.get("display_name", "")).lower())
 
-def save_new_user(display_name, email, password, birthday_date, lock_key="", profile_pic=None, scratch_reward=""):
+def db_create_user(display_name, email, password, birthday_date, lock_key="", profile_pic=None, scratch_reward=""):
     email = email.strip().lower()
     pass_hash = generate_password_hash(password)
     lock_hash = generate_password_hash(lock_key) if lock_key else None
+    user_id = str(uuid.uuid4())[:8]
     
-    # Save to SQLite
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """INSERT INTO users 
-           (email, password_hash, plain_password, role, display_name, birthday_date, lock_key_hash, plain_lock_key, profile_pic, scratch_reward) 
-           VALUES (?, ?, ?, 'user', ?, ?, ?, ?, ?, ?)""",
-        (email, pass_hash, password, display_name, birthday_date, lock_hash, lock_key if lock_key else None, profile_pic, scratch_reward)
-    )
-    user_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    user_data = {
+        "id": user_id,
+        "email": email,
+        "password_hash": pass_hash,
+        "plain_password": password,
+        "role": "user",
+        "display_name": display_name,
+        "birthday_date": birthday_date,
+        "lock_key_hash": lock_hash,
+        "plain_lock_key": lock_key if lock_key else None,
+        "profile_pic": profile_pic,
+        "scratch_reward": scratch_reward or "🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁",
+        "created_at": firestore.SERVER_TIMESTAMP
+    }
     
-    # Save to Firestore permanently
-    if firebase_db:
-        try:
-            firebase_db.collection("users").document(str(user_id)).set({
-                "id": user_id,
-                "email": email,
-                "password_hash": pass_hash,
-                "plain_password": password,
-                "role": "user",
-                "display_name": display_name,
-                "birthday_date": birthday_date,
-                "lock_key_hash": lock_hash,
-                "plain_lock_key": lock_key if lock_key else None,
-                "profile_pic": profile_pic,
-                "scratch_reward": scratch_reward,
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-            print(f"[Firestore] User '{display_name}' saved permanently to cloud database!")
-        except Exception as e:
-            print(f"[Firestore] save_new_user error: {e}")
-            
+    firebase_db.collection("users").document(user_id).set(user_data)
+    print(f"[Firestore] User '{display_name}' created in cloud!")
     return user_id
 
-def delete_user_by_id(user_id):
-    # SQLite
-    conn = get_db_connection()
-    conn.execute("DELETE FROM achievements WHERE user_id = ?", (user_id,))
-    conn.execute("DELETE FROM memories WHERE user_id = ?", (user_id,))
-    conn.execute("DELETE FROM notes WHERE user_id = ?", (user_id,))
-    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
-    conn.commit()
-    conn.close()
+def db_delete_user(user_id):
+    user_id_str = str(user_id)
+    firebase_db.collection("users").document(user_id_str).delete()
     
-    # Firestore
-    if firebase_db:
-        try:
-            firebase_db.collection("users").document(str(user_id)).delete()
-        except Exception as e:
-            print(f"[Firestore] delete_user error: {e}")
+    # Cascade delete notes
+    notes_docs = firebase_db.collection("notes").where(filter=firestore.FieldFilter("user_id", "==", user_id_str)).get()
+    for nd in notes_docs:
+        nd.reference.delete()
+        
+    # Cascade delete memories
+    mem_docs = firebase_db.collection("memories").where(filter=firestore.FieldFilter("user_id", "==", user_id_str)).get()
+    for md in mem_docs:
+        md.reference.delete()
+        
+    # Cascade delete achievements
+    ach_docs = firebase_db.collection("achievements").where(filter=firestore.FieldFilter("user_id", "==", user_id_str)).get()
+    for ad in ach_docs:
+        ad.reference.delete()
 
-def update_user_profile_pic(user_id, photo_path):
-    conn = get_db_connection()
-    conn.execute("UPDATE users SET profile_pic = ? WHERE id = ?", (photo_path, user_id))
-    conn.commit()
-    conn.close()
+def db_update_user_profile_pic(user_id, photo_path):
+    user_id_str = str(user_id)
+    firebase_db.collection("users").document(user_id_str).set({
+        "profile_pic": photo_path,
+        "updated_at": firestore.SERVER_TIMESTAMP
+    }, merge=True)
+
+def db_get_notes(user_id=None):
+    if user_id:
+        docs = firebase_db.collection("notes").where(filter=firestore.FieldFilter("user_id", "==", str(user_id))).get()
+    else:
+        docs = firebase_db.collection("notes").get()
+        
+    notes = []
+    users_map = {u["id"]: u for u in db_get_all_standard_users()}
+    for d in docs:
+        data = d.to_dict()
+        data["id"] = d.id
+        u = users_map.get(data.get("user_id"))
+        if u:
+            data["recipient_name"] = u.get("display_name")
+            data["recipient_email"] = u.get("email")
+        created_val = data.get("created_at")
+        if hasattr(created_val, "strftime"):
+            data["created_at"] = created_val.strftime("%Y-%m-%d %H:%M")
+        else:
+            data["created_at"] = str(created_val or "")
+        notes.append(data)
+    return sorted(notes, key=lambda x: str(x.get("created_at", "")), reverse=True)
+
+def db_add_note(user_id, sender_name, title, message, icon="💌"):
+    note_id = str(uuid.uuid4())[:8]
+    firebase_db.collection("notes").document(note_id).set({
+        "id": note_id,
+        "user_id": str(user_id),
+        "sender_name": sender_name,
+        "title": title,
+        "message": message,
+        "icon": icon,
+        "created_at": firestore.SERVER_TIMESTAMP
+    })
+    return note_id
+
+def db_delete_note(note_id):
+    firebase_db.collection("notes").document(str(note_id)).delete()
+
+def db_get_memories(user_id=None):
+    if user_id:
+        docs = firebase_db.collection("memories").where(filter=firestore.FieldFilter("user_id", "==", str(user_id))).get()
+    else:
+        docs = firebase_db.collection("memories").get()
+        
+    memories = []
+    users_map = {u["id"]: u for u in db_get_all_standard_users()}
+    for d in docs:
+        data = d.to_dict()
+        data["id"] = d.id
+        u = users_map.get(data.get("user_id"))
+        if u:
+            data["recipient_name"] = u.get("display_name")
+            data["recipient_email"] = u.get("email")
+        created_val = data.get("created_at")
+        if hasattr(created_val, "strftime"):
+            data["created_at"] = created_val.strftime("%Y-%m-%d %H:%M")
+        else:
+            data["created_at"] = str(created_val or "")
+        memories.append(data)
+    return sorted(memories, key=lambda x: str(x.get("created_at", "")), reverse=True)
+
+def db_get_memory_by_id(memory_id):
+    doc = firebase_db.collection("memories").document(str(memory_id)).get()
+    if doc.exists:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        return data
+    return None
+
+def db_add_memory(user_id, title, description, media_path, is_video=0, is_locked=0, lock_password=""):
+    mem_id = str(uuid.uuid4())[:8]
+    lock_hash = generate_password_hash(lock_password) if (is_locked and lock_password) else None
     
-    if firebase_db:
-        try:
-            firebase_db.collection("users").document(str(user_id)).set({
-                "profile_pic": photo_path,
-                "updated_at": firestore.SERVER_TIMESTAMP
-            }, merge=True)
-            print(f"[Firestore] User {user_id} profile_pic updated in cloud!")
-        except Exception as e:
-            print(f"[Firestore] update_user_profile_pic error: {e}")
+    firebase_db.collection("memories").document(mem_id).set({
+        "id": mem_id,
+        "user_id": str(user_id),
+        "title": title,
+        "description": description,
+        "media_path": media_path,
+        "is_video": int(is_video),
+        "is_locked": int(is_locked),
+        "lock_password_hash": lock_hash,
+        "created_at": firestore.SERVER_TIMESTAMP
+    })
+    db_earn_badge(user_id, "Memory Keeper")
+    return mem_id
+
+def db_get_achievements(user_id):
+    docs = firebase_db.collection("achievements").where(filter=firestore.FieldFilter("user_id", "==", str(user_id))).get()
+    return [d.to_dict().get("badge_name") for d in docs]
+
+def db_earn_badge(user_id, badge_name):
+    doc_id = f"{user_id}_{badge_name.replace(' ', '_')}"
+    firebase_db.collection("achievements").document(doc_id).set({
+        "id": doc_id,
+        "user_id": str(user_id),
+        "badge_name": badge_name,
+        "earned_at": firestore.SERVER_TIMESTAMP
+    }, merge=True)
 
 # ----------------------------------------------------
 # 4. HELPER FUNCTIONS & MIDDLEWARES
@@ -345,7 +361,7 @@ def admin_required(f):
     return decorated_function
 
 def get_nearest_birthdays():
-    users = get_all_standard_users()
+    users = db_get_all_standard_users()
     now = datetime.now()
     upcoming = []
     
@@ -396,26 +412,23 @@ def index():
     if not is_logged_in():
         return redirect(url_for("login"))
     
-    current_user = get_user_by_id(session["user_id"])
+    current_user = db_get_user_by_id(session["user_id"])
     if current_user:
         session["birthday_date"] = current_user.get("birthday_date")
         session["display_name"] = current_user.get("display_name")
         
-    conn = get_db_connection()
-    badges = conn.execute("SELECT badge_name, earned_at FROM achievements WHERE user_id = ?", (session["user_id"],)).fetchall()
-    note_count = conn.execute("SELECT COUNT(*) as cnt FROM notes WHERE user_id = ?", (session["user_id"],)).fetchone()["cnt"]
-    recent_memories = conn.execute("SELECT * FROM memories WHERE user_id = ? ORDER BY created_at DESC LIMIT 3", (session["user_id"],)).fetchall()
-    conn.close()
+    badges = db_get_achievements(session["user_id"])
+    notes_list = db_get_notes(session["user_id"])
+    note_count = len(notes_list)
+    recent_memories = db_get_memories(session["user_id"])[:3]
     
     nearest_bday, all_upcoming = None, []
     if session.get("user_role") == "admin":
         nearest_bday, all_upcoming = get_nearest_birthdays()
         
-    earned_badges = [b["badge_name"] for b in badges]
-    
     return render_template(
         "dashboard.html", 
-        earned_badges=earned_badges, 
+        earned_badges=badges, 
         birthday_date=session.get("birthday_date"),
         note_count=note_count,
         user_data=current_user,
@@ -437,7 +450,7 @@ def login():
             flash("Please enter both email and password.", "error")
             return render_template("login.html")
             
-        user = get_user_by_email(email)
+        user = db_get_user_by_email(email)
         
         if user and check_password_hash(user["password_hash"], password):
             session["user_id"] = user["id"]
@@ -472,45 +485,23 @@ def cake():
 @app.route("/notes")
 @birthday_required
 def notes():
-    conn = get_db_connection()
     if session.get("user_role") == "admin":
-        notes_list = conn.execute("""
-            SELECT n.*, u.display_name as recipient_name, u.email as recipient_email 
-            FROM notes n 
-            LEFT JOIN users u ON n.user_id = u.id 
-            ORDER BY n.created_at DESC
-        """).fetchall()
-        users_list = get_all_standard_users()
-        conn.close()
+        notes_list = db_get_notes()
+        users_list = db_get_all_standard_users()
         return render_template("notes.html", notes=notes_list, users=users_list)
     else:
-        notes_list = conn.execute(
-            "SELECT * FROM notes WHERE user_id = ? ORDER BY created_at DESC", 
-            (session["user_id"],)
-        ).fetchall()
-        conn.close()
+        notes_list = db_get_notes(session["user_id"])
         return render_template("notes.html", notes=notes_list)
 
 @app.route("/memories")
 @birthday_required
 def memories():
-    conn = get_db_connection()
     if session.get("user_role") == "admin":
-        memories_list = conn.execute("""
-            SELECT m.*, u.display_name as recipient_name, u.email as recipient_email 
-            FROM memories m 
-            LEFT JOIN users u ON m.user_id = u.id 
-            ORDER BY m.created_at DESC
-        """).fetchall()
-        users_list = get_all_standard_users()
-        conn.close()
+        memories_list = db_get_memories()
+        users_list = db_get_all_standard_users()
         return render_template("memories.html", memories=memories_list, users=users_list)
     else:
-        memories_list = conn.execute(
-            "SELECT * FROM memories WHERE user_id = ? ORDER BY created_at DESC", 
-            (session["user_id"],)
-        ).fetchall()
-        conn.close()
+        memories_list = db_get_memories(session["user_id"])
         return render_template("memories.html", memories=memories_list)
 
 # ----------------------------------------------------
@@ -554,7 +545,7 @@ def upload_hero_photo():
         except Exception as e:
             print(f"[Firebase Storage] Hero upload notice: {e}")
     
-    update_user_profile_pic(target_user_id, photo_path)
+    db_update_user_profile_pic(target_user_id, photo_path)
     
     flash("Hero portrait photo updated successfully! 📸", "success")
     return redirect(url_for(redirect_dest))
@@ -572,37 +563,14 @@ def add_note():
         flash("Title, recipient, and message are required for the note.", "error")
         return redirect(url_for("notes"))
         
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO notes (user_id, sender_name, title, message, icon) VALUES (?, ?, ?, ?, ?)",
-        (target_user_id, sender_name, title, message, icon)
-    )
-    conn.commit()
-    conn.close()
-    
-    if firebase_db:
-        try:
-            firebase_db.collection("notes").add({
-                "user_id": target_user_id,
-                "sender_name": sender_name,
-                "title": title,
-                "message": message,
-                "icon": icon,
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-        except Exception as e:
-            print(f"[Firestore] note sync notice: {e}")
-    
+    db_add_note(target_user_id, sender_name, title, message, icon)
     flash("Birthday Note & Letter added successfully! 💌", "success")
     return redirect(url_for("notes"))
 
-@app.route("/api/delete-note/<int:note_id>", methods=["POST"])
+@app.route("/api/delete-note/<string:note_id>", methods=["POST"])
 @admin_required
 def delete_note(note_id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-    conn.commit()
-    conn.close()
+    db_delete_note(note_id)
     flash("Note removed successfully.", "info")
     return redirect(url_for("notes"))
 
@@ -617,18 +585,11 @@ def earn_badge():
     if not badge_name:
         return jsonify({"status": "error", "message": "Badge name required"}), 400
         
-    conn = get_db_connection()
     try:
-        conn.execute(
-            "INSERT OR IGNORE INTO achievements (user_id, badge_name) VALUES (?, ?)",
-            (session["user_id"], badge_name)
-        )
-        conn.commit()
+        db_earn_badge(session["user_id"], badge_name)
         return jsonify({"status": "success", "message": f"Earned badge: {badge_name}"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        conn.close()
 
 @app.route("/api/upload-memory", methods=["POST"])
 def upload_memory():
@@ -684,22 +645,7 @@ def upload_memory():
         except Exception as e:
             print(f"[Firebase Storage] Memory upload notice: {e}")
     
-    lock_password_hash = None
-    if is_locked and lock_password:
-        lock_password_hash = generate_password_hash(lock_password)
-    
-    conn = get_db_connection()
-    conn.execute(
-        "INSERT INTO memories (user_id, title, description, media_path, is_video, is_locked, lock_password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (target_user_id, title, description, media_web_path, is_video, is_locked, lock_password_hash)
-    )
-    conn.execute(
-        "INSERT OR IGNORE INTO achievements (user_id, badge_name) VALUES (?, 'Memory Keeper')",
-        (target_user_id,)
-    )
-    conn.commit()
-    conn.close()
-    
+    db_add_memory(target_user_id, title, description, media_web_path, is_video, is_locked, lock_password)
     media_label = "Video" if is_video else "Photo"
     flash(f"{media_label} memory '{title}' added to recipient chest! 📸", "success")
     return redirect(url_for("memories"))
@@ -716,21 +662,15 @@ def unlock_memory():
     if not memory_id or not password:
         return jsonify({"status": "error", "message": "Missing credentials"}), 400
         
-    conn = get_db_connection()
-    if session.get("user_role") == "admin":
-        memory = conn.execute("SELECT * FROM memories WHERE id = ?", (memory_id,)).fetchone()
-    else:
-        memory = conn.execute("SELECT * FROM memories WHERE id = ? AND user_id = ?", (memory_id, session["user_id"])).fetchone()
-    conn.close()
-    
+    memory = db_get_memory_by_id(memory_id)
     if not memory:
         return jsonify({"status": "error", "message": "Memory not found"}), 404
         
     unlocked = False
-    if memory["lock_password_hash"] and check_password_hash(memory["lock_password_hash"], password):
+    if memory.get("lock_password_hash") and check_password_hash(memory["lock_password_hash"], password):
         unlocked = True
     else:
-        user_data = get_user_by_id(memory["user_id"])
+        user_data = db_get_user_by_id(memory["user_id"])
         if user_data and user_data.get("lock_key_hash") and check_password_hash(user_data["lock_key_hash"], password):
             unlocked = True
             
@@ -738,8 +678,8 @@ def unlock_memory():
         return jsonify({
             "status": "success",
             "media_path": memory["media_path"],
-            "is_video": memory["is_video"],
-            "description": memory["description"]
+            "is_video": memory.get("is_video", 0),
+            "description": memory.get("description", "")
         })
     else:
         return jsonify({"status": "error", "message": "Incorrect password"}), 403
@@ -751,7 +691,7 @@ def unlock_memory():
 @app.route("/admin")
 @admin_required
 def admin_panel():
-    users_list = get_all_standard_users()
+    users_list = db_get_all_standard_users()
     nearest_bday, all_upcoming = get_nearest_birthdays()
     return render_template("admin.html", users=users_list, nearest_bday=nearest_bday, all_upcoming=all_upcoming)
 
@@ -769,7 +709,7 @@ def admin_create_user():
         flash("Display Name, Email, Password, and Birthday Date are required.", "error")
         return redirect(url_for("admin_panel"))
         
-    existing = get_user_by_email(email)
+    existing = db_get_user_by_email(email)
     if existing:
         flash("A user with that email already exists.", "error")
         return redirect(url_for("admin_panel"))
@@ -785,7 +725,7 @@ def admin_create_user():
             profile_pic = f"/static/uploads/{unique_name}"
             
     try:
-        save_new_user(
+        db_create_user(
             display_name=display_name,
             email=email,
             password=password,
@@ -794,20 +734,22 @@ def admin_create_user():
             profile_pic=profile_pic,
             scratch_reward=scratch_reward
         )
-        flash(f"Account for '{display_name}' created successfully! Saved permanently.", "success")
+        flash(f"Account for '{display_name}' created in Firebase! Saved permanently.", "success")
     except Exception as e:
         flash(f"Error creating user: {str(e)}", "error")
         
     return redirect(url_for("admin_panel"))
 
-@app.route("/admin/delete-user/<int:user_id>", methods=["POST"])
+@app.route("/admin/delete-user/<string:user_id>", methods=["POST"])
 @admin_required
 def admin_delete_user(user_id):
     try:
-        delete_user_by_id(user_id)
-        flash("User account, memories, and notes revoked.", "success")
+        db_delete_user(user_id)
+        flash("User account, memories, and notes revoked from Firebase.", "success")
     except Exception as e:
         flash(f"Error deleting user: {str(e)}", "error")
+    finally:
+        pass
         
     return redirect(url_for("admin_panel"))
 
