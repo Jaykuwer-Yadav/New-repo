@@ -42,49 +42,72 @@ firebase_db = None
 firebase_bucket = None
 
 cred = None
-env_creds = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-if env_creds:
-    try:
-        cleaned_creds = env_creds.strip()
-        if (cleaned_creds.startswith("'{") and cleaned_creds.endswith("}'")) or (cleaned_creds.startswith('"{') and cleaned_creds.endswith('}"')):
-            cleaned_creds = cleaned_creds[1:-1]
-        creds_dict = json.loads(cleaned_creds)
-        cred = credentials.Certificate(creds_dict)
-        print("[Firebase] Loaded credentials from FIREBASE_CREDENTIALS_JSON environment variable.")
-    except Exception as e:
-        print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_JSON: {e}")
 
-if not cred:
-    key_files = glob.glob("*firebase-adminsdk*.json") + glob.glob("firebase-key.json") + glob.glob("serviceAccountKey.json")
-    if key_files and os.path.exists(key_files[0]):
+# 1. Check all possible Environment Variable names
+for env_name in ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_CREDENTIALS", "FIREBASE_KEY", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]:
+    env_val = os.environ.get(env_name)
+    if env_val:
         try:
-            cred = credentials.Certificate(key_files[0])
-            print(f"[Firebase] Loaded credentials from local file: {key_files[0]}")
+            cleaned = env_val.strip()
+            if (cleaned.startswith("'{") and cleaned.endswith("}'")) or (cleaned.startswith('"{') and cleaned.endswith('}"')):
+                cleaned = cleaned[1:-1]
+            creds_dict = json.loads(cleaned)
+            cred = credentials.Certificate(creds_dict)
+            print(f"[Firebase] Loaded credentials from environment variable: {env_name}")
+            break
         except Exception as e:
-            print(f"[Firebase] Error loading local key file: {e}")
+            print(f"[Firebase] Error parsing {env_name}: {e}")
 
+# 2. Check for Base64 encoded environment variable
+if not cred and os.environ.get("FIREBASE_CREDENTIALS_BASE64"):
+    try:
+        import base64
+        decoded = base64.b64decode(os.environ.get("FIREBASE_CREDENTIALS_BASE64")).decode("utf-8")
+        creds_dict = json.loads(decoded)
+        cred = credentials.Certificate(creds_dict)
+        print("[Firebase] Loaded credentials from FIREBASE_CREDENTIALS_BASE64.")
+    except Exception as e:
+        print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_BASE64: {e}")
+
+# 3. Check for Secret Files on Render (/etc/secrets/...) or local directory
 if not cred:
-    raise RuntimeError("CRITICAL: Firebase service account credentials not found. Please provide FIREBASE_CREDENTIALS_JSON or a local serviceAccountKey.json file.")
+    search_paths = [
+        "/etc/secrets/serviceAccountKey.json",
+        "/etc/secrets/firebase-key.json",
+        "/etc/secrets/firebase-adminsdk.json",
+        "serviceAccountKey.json",
+        "firebase-key.json"
+    ] + glob.glob("*firebase-adminsdk*.json") + glob.glob("*.json")
 
-bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
-try:
-    firebase_app = firebase_admin.initialize_app(cred, {
-        "storageBucket": bucket_name
-    })
-except Exception:
-    firebase_app = firebase_admin.get_app()
+    for path in search_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                if "service_account" in content and "private_key" in content:
+                    creds_dict = json.loads(content)
+                    cred = credentials.Certificate(creds_dict)
+                    print(f"[Firebase] Loaded credentials from file: {path}")
+                    break
+            except Exception:
+                continue
 
-firebase_db = firestore.client()
-try:
-    firebase_bucket = storage.bucket()
-except Exception:
-    firebase_bucket = None
-
-print(f"[Firebase] Connected to Cloud Firestore & Storage for project: {cred.project_id}")
-
-# ----------------------------------------------------
-# 2. FIRESTORE DATABASE INITIALIZATION (DEFAULT ACCOUNTS)
-# ----------------------------------------------------
+if cred:
+    bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
+    try:
+        firebase_app = firebase_admin.initialize_app(cred, {
+            "storageBucket": bucket_name
+        })
+    except Exception:
+        firebase_app = firebase_admin.get_app()
+    firebase_db = firestore.client()
+    try:
+        firebase_bucket = storage.bucket()
+    except Exception:
+        firebase_bucket = None
+    print(f"[Firebase] Connected to Cloud Firestore for project: {cred.project_id}")
+else:
+    print("[Firebase] WARNING: No Firebase credentials found. Please set FIREBASE_CREDENTIALS_JSON in Render environment variables or add a Secret File.")
 
 def init_firestore():
     try:
