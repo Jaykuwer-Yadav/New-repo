@@ -21,8 +21,11 @@ try:
 except ImportError:
     pass
 
+import requests
+import google.auth
+import google.auth.transport.requests
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, storage
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "birthday_memories_secret_key_for_sessions_2026")
@@ -35,16 +38,14 @@ os.makedirs(os.path.join("static", "css"), exist_ok=True)
 os.makedirs(os.path.join("static", "js"), exist_ok=True)
 
 # ----------------------------------------------------
-# 1. PURE FIREBASE INITIALIZATION
+# 1. PURE FIREBASE REST & CLOUD STORAGE INITIALIZATION
 # ----------------------------------------------------
 firebase_app = None
-firebase_db = None
 firebase_bucket = None
-
 cred = None
 
-# 1. Check all possible Environment Variable names
-for env_name in ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_CREDENTIALS", "FIREBASE_KEY", "GOOGLE_APPLICATION_CREDENTIALS_JSON"]:
+# Check Environment Variables
+for env_name in ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_CREDENTIALS", "FIREBASE_KEY"]:
     env_val = os.environ.get(env_name)
     if env_val:
         try:
@@ -58,26 +59,14 @@ for env_name in ["FIREBASE_CREDENTIALS_JSON", "FIREBASE_CREDENTIALS", "FIREBASE_
         except Exception as e:
             print(f"[Firebase] Error parsing {env_name}: {e}")
 
-# 2. Check for Base64 encoded environment variable
-if not cred and os.environ.get("FIREBASE_CREDENTIALS_BASE64"):
-    try:
-        import base64
-        decoded = base64.b64decode(os.environ.get("FIREBASE_CREDENTIALS_BASE64")).decode("utf-8")
-        creds_dict = json.loads(decoded)
-        cred = credentials.Certificate(creds_dict)
-        print("[Firebase] Loaded credentials from FIREBASE_CREDENTIALS_BASE64.")
-    except Exception as e:
-        print(f"[Firebase] Error parsing FIREBASE_CREDENTIALS_BASE64: {e}")
-
-# 3. Check for Secret Files on Render (/etc/secrets/...) or local directory
+# Check Secret Files
 if not cred:
     search_paths = [
         "/etc/secrets/serviceAccountKey.json",
         "/etc/secrets/firebase-key.json",
-        "/etc/secrets/firebase-adminsdk.json",
         "serviceAccountKey.json",
         "firebase-key.json"
-    ] + glob.glob("*firebase-adminsdk*.json") + glob.glob("*.json")
+    ] + glob.glob("*firebase-adminsdk*.json")
 
     for path in search_paths:
         if os.path.exists(path):
@@ -95,70 +84,165 @@ if not cred:
 if cred:
     bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", f"{cred.project_id}.appspot.com")
     try:
-        firebase_app = firebase_admin.initialize_app(cred, {
-            "storageBucket": bucket_name
-        })
+        firebase_app = firebase_admin.initialize_app(cred, {"storageBucket": bucket_name})
     except Exception:
         firebase_app = firebase_admin.get_app()
-
-    try:
-        firebase_db = firestore.client(app=firebase_app)
-    except Exception:
-        try:
-            from google.cloud import firestore as g_firestore
-            firebase_db = g_firestore.Client(project=cred.project_id, credentials=cred.get_credential())
-        except Exception as e:
-            print(f"[Firestore] Client init error: {e}")
-            firebase_db = None
-
     try:
         firebase_bucket = storage.bucket(app=firebase_app)
     except Exception:
         firebase_bucket = None
     print(f"[Firebase] Connected to Cloud Firestore for project: {cred.project_id}")
+else:
+    print("[Firebase] WARNING: No credentials found.")
 
-def init_firestore():
-    if not firebase_db:
-        return
+# ----------------------------------------------------
+# 2. BULLETPROOF FIRESTORE REST ENGINE (ZERO gRPC BUGS)
+# ----------------------------------------------------
+
+_cached_token = None
+_token_expiry = None
+
+def get_auth_token():
+    global _cached_token, _token_expiry
+    if not cred:
+        return None
+    now = datetime.now()
+    if _cached_token and _token_expiry and now < _token_expiry:
+        return _cached_token
     try:
-        # Check if any admin exists in Firestore
-        admin_query = firebase_db.collection("users").where(filter=firestore.FieldFilter("role", "==", "admin")).limit(1).get()
-        if not list(admin_query):
-            firebase_db.collection("users").document("admin").set({
-                "id": "admin",
-                "email": "admin@bday.com",
-                "password_hash": generate_password_hash("admin123"),
-                "plain_password": "admin123",
-                "role": "admin",
-                "display_name": "Admin",
-                "birthday_date": None,
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-            print("[Firestore] Default Admin initialized (admin@bday.com / admin123).")
+        g_cred = cred.get_credential()
+        auth_req = google.auth.transport.requests.Request()
+        g_cred.refresh(auth_req)
+        _cached_token = g_cred.token
+        _token_expiry = now + timedelta(minutes=50)
+        return _cached_token
     except Exception as e:
-        print(f"[Firestore] init_firestore error: {e}")
+        print(f"[Firestore REST] Auth token error: {e}")
+        return None
 
-init_firestore()
+def firestore_base_url():
+    proj = cred.project_id if cred else "admyproperty-8a9d9"
+    return f"https://firestore.googleapis.com/v1/projects/{proj}/databases/(default)/documents"
+
+def firestore_to_dict(doc_json):
+    if not doc_json:
+        return {}
+    fields = doc_json.get("fields", {})
+    result = {}
+    for k, v in fields.items():
+        if "stringValue" in v:
+            result[k] = v["stringValue"]
+        elif "integerValue" in v:
+            result[k] = int(v["integerValue"])
+        elif "booleanValue" in v:
+            result[k] = v["booleanValue"]
+        elif "nullValue" in v:
+            result[k] = None
+        elif "timestampValue" in v:
+            result[k] = v["timestampValue"]
+    result["id"] = doc_json.get("name", "").split("/")[-1]
+    return result
+
+def dict_to_firestore(data_dict):
+    fields = {}
+    for k, v in data_dict.items():
+        if v is None:
+            fields[k] = {"nullValue": None}
+        elif isinstance(v, bool):
+            fields[k] = {"booleanValue": v}
+        elif isinstance(v, int):
+            fields[k] = {"integerValue": str(v)}
+        else:
+            fields[k] = {"stringValue": str(v)}
+    return {"fields": fields}
+
+def fs_get_all(collection):
+    token = get_auth_token()
+    if not token:
+        return []
+    try:
+        url = f"{firestore_base_url()}/{collection}"
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            docs = resp.json().get("documents", [])
+            return [firestore_to_dict(d) for d in docs]
+        return []
+    except Exception as e:
+        print(f"[Firestore REST] fs_get_all error: {e}")
+        return []
+
+def fs_get_doc(collection, doc_id):
+    token = get_auth_token()
+    if not token:
+        return None
+    try:
+        url = f"{firestore_base_url()}/{collection}/{doc_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return firestore_to_dict(resp.json())
+        return None
+    except Exception as e:
+        print(f"[Firestore REST] fs_get_doc error: {e}")
+        return None
+
+def fs_set_doc(collection, doc_id, data_dict):
+    token = get_auth_token()
+    if not token:
+        return False
+    try:
+        url = f"{firestore_base_url()}/{collection}/{doc_id}"
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        payload = dict_to_firestore(data_dict)
+        resp = requests.patch(url, headers=headers, json=payload, timeout=10)
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"[Firestore REST] fs_set_doc error: {e}")
+        return False
+
+def fs_delete_doc(collection, doc_id):
+    token = get_auth_token()
+    if not token:
+        return False
+    try:
+        url = f"{firestore_base_url()}/{collection}/{doc_id}"
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.delete(url, headers=headers, timeout=10)
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"[Firestore REST] fs_delete_doc error: {e}")
+        return False
 
 # ----------------------------------------------------
-# 3. PURE FIRESTORE DATA ACCESS METHODS
+# 3. APPLICATION DATA ACCESS LAYER
 # ----------------------------------------------------
+
+def init_firestore_defaults():
+    admin = fs_get_doc("users", "admin")
+    if not admin:
+        fs_set_doc("users", "admin", {
+            "id": "admin",
+            "email": "admin@bday.com",
+            "password_hash": generate_password_hash("admin123"),
+            "plain_password": "admin123",
+            "role": "admin",
+            "display_name": "Admin",
+            "birthday_date": None
+        })
+        print("[Firestore REST] Default Admin created (admin@bday.com / admin123).")
+
+init_firestore_defaults()
 
 def db_get_user_by_email(email):
     if not email:
         return None
-    email = email.strip().lower()
-    if firebase_db:
-        try:
-            docs = firebase_db.collection("users").where(filter=firestore.FieldFilter("email", "==", email)).limit(1).get()
-            for doc in docs:
-                data = doc.to_dict()
-                data["id"] = data.get("id") or doc.id
-                return data
-        except Exception as e:
-            print(f"[Firestore] get_user_by_email error: {e}")
-    # Default Admin fallback in memory
-    if email == "admin@bday.com":
+    email_clean = email.strip().lower()
+    users = fs_get_all("users")
+    for u in users:
+        if (u.get("email") or "").strip().lower() == email_clean:
+            return u
+    if email_clean == "admin@bday.com":
         return {
             "id": "admin",
             "email": "admin@bday.com",
@@ -173,20 +257,13 @@ def db_get_user_by_id(user_id):
     if not user_id:
         return None
     user_id_str = str(user_id)
-    if firebase_db:
-        try:
-            doc = firebase_db.collection("users").document(user_id_str).get()
-            if doc.exists:
-                data = doc.to_dict()
-                data["id"] = data.get("id") or doc.id
-                return data
-            docs = firebase_db.collection("users").where(filter=firestore.FieldFilter("id", "==", user_id)).limit(1).get()
-            for d in docs:
-                data = d.to_dict()
-                data["id"] = data.get("id") or d.id
-                return data
-        except Exception as e:
-            print(f"[Firestore] get_user_by_id error: {e}")
+    doc = fs_get_doc("users", user_id_str)
+    if doc:
+        return doc
+    users = fs_get_all("users")
+    for u in users:
+        if str(u.get("id")) == user_id_str:
+            return u
     if user_id_str == "admin":
         return {
             "id": "admin",
@@ -199,19 +276,9 @@ def db_get_user_by_id(user_id):
     return None
 
 def db_get_all_standard_users():
-    if firebase_db:
-        try:
-            docs = firebase_db.collection("users").stream()
-            users_list = []
-            for doc in docs:
-                data = doc.to_dict()
-                data["id"] = data.get("id") or doc.id
-                if data.get("role") != "admin":
-                    users_list.append(data)
-            return sorted(users_list, key=lambda x: str(x.get("display_name", "")).lower())
-        except Exception as e:
-            print(f"[Firestore] get_all_standard_users error: {e}")
-    return []
+    users = fs_get_all("users")
+    standard_users = [u for u in users if u.get("role") != "admin"]
+    return sorted(standard_users, key=lambda x: str(x.get("display_name", "")).lower())
 
 def db_create_user(display_name, email, password, birthday_date, lock_key="", profile_pic=None, scratch_reward=""):
     email = email.strip().lower()
@@ -231,181 +298,104 @@ def db_create_user(display_name, email, password, birthday_date, lock_key="", pr
         "plain_lock_key": lock_key if lock_key else None,
         "profile_pic": profile_pic,
         "scratch_reward": scratch_reward or "🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁",
-        "created_at": firestore.SERVER_TIMESTAMP if firebase_db else str(datetime.now())
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
     }
     
-    if firebase_db:
-        try:
-            firebase_db.collection("users").document(user_id).set(user_data)
-            print(f"[Firestore] User '{display_name}' created in cloud!")
-        except Exception as e:
-            print(f"[Firestore] db_create_user error: {e}")
+    fs_set_doc("users", user_id, user_data)
+    print(f"[Firestore REST] User '{display_name}' ({email}) saved permanently in cloud!")
     return user_id
 
 def db_delete_user(user_id):
-    if not firebase_db:
-        return
-    try:
-        user_id_str = str(user_id)
-        firebase_db.collection("users").document(user_id_str).delete()
-        for col in ["notes", "memories", "achievements"]:
-            docs = firebase_db.collection(col).where(filter=firestore.FieldFilter("user_id", "==", user_id_str)).get()
-            for d in docs:
-                d.reference.delete()
-    except Exception as e:
-        print(f"[Firestore] db_delete_user error: {e}")
+    user_id_str = str(user_id)
+    fs_delete_doc("users", user_id_str)
+    for col in ["notes", "memories", "achievements"]:
+        items = fs_get_all(col)
+        for item in items:
+            if str(item.get("user_id")) == user_id_str:
+                fs_delete_doc(col, item["id"])
 
 def db_update_user_profile_pic(user_id, photo_path):
-    if not firebase_db:
-        return
-    try:
-        user_id_str = str(user_id)
-        firebase_db.collection("users").document(user_id_str).set({
-            "profile_pic": photo_path,
-            "updated_at": firestore.SERVER_TIMESTAMP
-        }, merge=True)
-    except Exception as e:
-        print(f"[Firestore] update_user_profile_pic error: {e}")
+    user = db_get_user_by_id(user_id)
+    if user:
+        user["profile_pic"] = photo_path
+        fs_set_doc("users", str(user["id"]), user)
 
 def db_get_notes(user_id=None):
-    if not firebase_db:
-        return []
-    try:
-        if user_id:
-            docs = firebase_db.collection("notes").where(filter=firestore.FieldFilter("user_id", "==", str(user_id))).get()
-        else:
-            docs = firebase_db.collection("notes").get()
-            
-        notes = []
-        users_map = {u["id"]: u for u in db_get_all_standard_users()}
-        for d in docs:
-            data = d.to_dict()
-            data["id"] = d.id
-            u = users_map.get(data.get("user_id"))
-            if u:
-                data["recipient_name"] = u.get("display_name")
-                data["recipient_email"] = u.get("email")
-            created_val = data.get("created_at")
-            if hasattr(created_val, "strftime"):
-                data["created_at"] = created_val.strftime("%Y-%m-%d %H:%M")
-            else:
-                data["created_at"] = str(created_val or "")
-            notes.append(data)
-        return sorted(notes, key=lambda x: str(x.get("created_at", "")), reverse=True)
-    except Exception as e:
-        print(f"[Firestore] db_get_notes error: {e}")
-        return []
+    notes = fs_get_all("notes")
+    if user_id:
+        notes = [n for n in notes if str(n.get("user_id")) == str(user_id)]
+    users_map = {str(u["id"]): u for u in fs_get_all("users")}
+    for n in notes:
+        u = users_map.get(str(n.get("user_id")))
+        if u:
+            n["recipient_name"] = u.get("display_name")
+            n["recipient_email"] = u.get("email")
+    return sorted(notes, key=lambda x: str(x.get("created_at", "")), reverse=True)
 
 def db_add_note(user_id, sender_name, title, message, icon="💌"):
     note_id = str(uuid.uuid4())[:8]
-    if firebase_db:
-        try:
-            firebase_db.collection("notes").document(note_id).set({
-                "id": note_id,
-                "user_id": str(user_id),
-                "sender_name": sender_name,
-                "title": title,
-                "message": message,
-                "icon": icon,
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-        except Exception as e:
-            print(f"[Firestore] db_add_note error: {e}")
+    fs_set_doc("notes", note_id, {
+        "id": note_id,
+        "user_id": str(user_id),
+        "sender_name": sender_name,
+        "title": title,
+        "message": message,
+        "icon": icon,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
     return note_id
 
 def db_delete_note(note_id):
-    if firebase_db:
-        try:
-            firebase_db.collection("notes").document(str(note_id)).delete()
-        except Exception as e:
-            print(f"[Firestore] db_delete_note error: {e}")
+    fs_delete_doc("notes", str(note_id))
 
 def db_get_memories(user_id=None):
-    if not firebase_db:
-        return []
-    try:
-        if user_id:
-            docs = firebase_db.collection("memories").where(filter=firestore.FieldFilter("user_id", "==", str(user_id))).get()
-        else:
-            docs = firebase_db.collection("memories").get()
-            
-        memories = []
-        users_map = {u["id"]: u for u in db_get_all_standard_users()}
-        for d in docs:
-            data = d.to_dict()
-            data["id"] = d.id
-            u = users_map.get(data.get("user_id"))
-            if u:
-                data["recipient_name"] = u.get("display_name")
-                data["recipient_email"] = u.get("email")
-            created_val = data.get("created_at")
-            if hasattr(created_val, "strftime"):
-                data["created_at"] = created_val.strftime("%Y-%m-%d %H:%M")
-            else:
-                data["created_at"] = str(created_val or "")
-            memories.append(data)
-        return sorted(memories, key=lambda x: str(x.get("created_at", "")), reverse=True)
-    except Exception as e:
-        print(f"[Firestore] db_get_memories error: {e}")
-        return []
+    memories = fs_get_all("memories")
+    if user_id:
+        memories = [m for m in memories if str(m.get("user_id")) == str(user_id)]
+    users_map = {str(u["id"]): u for u in fs_get_all("users")}
+    for m in memories:
+        u = users_map.get(str(m.get("user_id")))
+        if u:
+            m["recipient_name"] = u.get("display_name")
+            m["recipient_email"] = u.get("email")
+    return sorted(memories, key=lambda x: str(x.get("created_at", "")), reverse=True)
 
 def db_get_memory_by_id(memory_id):
-    if not firebase_db:
-        return None
-    try:
-        doc = firebase_db.collection("memories").document(str(memory_id)).get()
-        if doc.exists:
-            data = doc.to_dict()
-            data["id"] = doc.id
-            return data
-    except Exception as e:
-        print(f"[Firestore] db_get_memory_by_id error: {e}")
-    return None
+    return fs_get_doc("memories", str(memory_id))
 
 def db_add_memory(user_id, title, description, media_path, is_video=0, is_locked=0, lock_password=""):
     mem_id = str(uuid.uuid4())[:8]
     lock_hash = generate_password_hash(lock_password) if (is_locked and lock_password) else None
-    if firebase_db:
-        try:
-            firebase_db.collection("memories").document(mem_id).set({
-                "id": mem_id,
-                "user_id": str(user_id),
-                "title": title,
-                "description": description,
-                "media_path": media_path,
-                "is_video": int(is_video),
-                "is_locked": int(is_locked),
-                "lock_password_hash": lock_hash,
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-            db_earn_badge(user_id, "Memory Keeper")
-        except Exception as e:
-            print(f"[Firestore] db_add_memory error: {e}")
+    fs_set_doc("memories", mem_id, {
+        "id": mem_id,
+        "user_id": str(user_id),
+        "title": title,
+        "description": description,
+        "media_path": media_path,
+        "is_video": int(is_video),
+        "is_locked": int(is_locked),
+        "lock_password_hash": lock_hash,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
+    db_earn_badge(user_id, "Memory Keeper")
     return mem_id
 
 def db_get_achievements(user_id):
-    if not firebase_db:
-        return []
-    try:
-        docs = firebase_db.collection("achievements").where(filter=firestore.FieldFilter("user_id", "==", str(user_id))).get()
-        return [d.to_dict().get("badge_name") for d in docs]
-    except Exception as e:
-        print(f"[Firestore] db_get_achievements error: {e}")
-        return []
+    achievements = fs_get_all("achievements")
+    return [a.get("badge_name") for a in achievements if str(a.get("user_id")) == str(user_id)]
 
 def db_earn_badge(user_id, badge_name):
-    if not firebase_db:
-        return
-    try:
-        doc_id = f"{user_id}_{badge_name.replace(' ', '_')}"
-        firebase_db.collection("achievements").document(doc_id).set({
-            "id": doc_id,
-            "user_id": str(user_id),
-            "badge_name": badge_name,
-            "earned_at": firestore.SERVER_TIMESTAMP
-        }, merge=True)
-    except Exception as e:
-        print(f"[Firestore] db_earn_badge error: {e}")
+    doc_id = f"{user_id}_{badge_name.replace(' ', '_')}"
+    fs_set_doc("achievements", doc_id, {
+        "id": doc_id,
+        "user_id": str(user_id),
+        "badge_name": badge_name,
+        "earned_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+    })
+
+# ----------------------------------------------------
+# 4. HELPER FUNCTIONS & MIDDLEWARES
+# ----------------------------------------------------
 
 def is_logged_in():
     return "user_id" in session
@@ -630,7 +620,6 @@ def upload_hero_photo():
             print(f"[Firebase Storage] Hero upload notice: {e}")
     
     db_update_user_profile_pic(target_user_id, photo_path)
-    
     flash("Hero portrait photo updated successfully! 📸", "success")
     return redirect(url_for(redirect_dest))
 
@@ -832,8 +821,6 @@ def admin_delete_user(user_id):
         flash("User account, memories, and notes revoked from Firebase.", "success")
     except Exception as e:
         flash(f"Error deleting user: {str(e)}", "error")
-    finally:
-        pass
         
     return redirect(url_for("admin_panel"))
 
@@ -851,28 +838,25 @@ def admin_change_credentials():
     admin_id = session.get("user_id", "admin")
     pass_hash = generate_password_hash(new_password)
     
-    if firebase_db:
-        try:
-            firebase_db.collection("users").document(str(admin_id)).set({
-                "id": str(admin_id),
-                "email": new_email,
-                "password_hash": pass_hash,
-                "plain_password": new_password,
-                "display_name": new_name,
-                "role": "admin",
-                "updated_at": firestore.SERVER_TIMESTAMP
-            }, merge=True)
-            
-            session["user_email"] = new_email
-            session["display_name"] = new_name
-            flash("Admin credentials updated successfully! 🔑", "success")
-        except Exception as e:
-            flash(f"Error updating admin credentials: {str(e)}", "error")
-            
+    admin_data = {
+        "id": str(admin_id),
+        "email": new_email,
+        "password_hash": pass_hash,
+        "plain_password": new_password,
+        "display_name": new_name,
+        "role": "admin"
+    }
+    
+    if fs_set_doc("users", str(admin_id), admin_data):
+        session["user_email"] = new_email
+        session["display_name"] = new_name
+        flash("Admin credentials updated successfully! 🔑", "success")
+    else:
+        flash("Error updating admin credentials.", "error")
+        
     return redirect(url_for("admin_panel"))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
 
