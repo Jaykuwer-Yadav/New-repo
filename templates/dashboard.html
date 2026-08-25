@@ -308,30 +308,53 @@
 // ==========================================
 // 1. Countdown Handlers
 // ==========================================
+function parseSafeDate(str) {
+    if (!str) return null;
+    let s = str.trim();
+    if (s.includes("T") && s.split(":").length === 2) {
+        s += ":00";
+    }
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.getTime();
+    const parts = s.split(/[-T :]/);
+    if (parts.length >= 3) {
+        return new Date(parts[0], parts[1] - 1, parts[2], parts[3] || 0, parts[4] || 0, parts[5] || 0).getTime();
+    }
+    return null;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // Admin nearest birthday countdown
     {% if user_role == 'admin' and nearest_bday %}
     const nearBdayRaw = "{{ nearest_bday.birthday_date }}";
-    if (nearBdayRaw) {
-        const nearTarget = new Date(nearBdayRaw).getTime();
+    const nearTarget = parseSafeDate(nearBdayRaw);
+    if (nearTarget) {
         function updateNearCounter() {
             const now = Date.now();
             const diff = nearTarget - now;
+            const daysEl = document.getElementById("near-days");
+            const hoursEl = document.getElementById("near-hours");
+            const minsEl = document.getElementById("near-minutes");
+            const secsEl = document.getElementById("near-seconds");
+
+            if (!daysEl) return;
+
             if (diff <= 0) {
-                document.getElementById("near-days").textContent = "00";
-                document.getElementById("near-hours").textContent = "00";
-                document.getElementById("near-minutes").textContent = "00";
-                document.getElementById("near-seconds").textContent = "00";
+                daysEl.textContent = "00";
+                hoursEl.textContent = "00";
+                minsEl.textContent = "00";
+                secsEl.textContent = "00";
                 return;
             }
             const d = Math.floor(diff / (1000 * 60 * 60 * 24));
             const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const s = Math.floor((diff % (1000 * 60)) / 1000);
-            document.getElementById("near-days").textContent = String(d).padStart(2, '0');
-            document.getElementById("near-hours").textContent = String(h).padStart(2, '0');
-            document.getElementById("near-minutes").textContent = String(m).padStart(2, '0');
-            document.getElementById("near-seconds").textContent = String(s).padStart(2, '0');
+            
+            daysEl.textContent = String(d).padStart(2, '0');
+            hoursEl.textContent = String(h).padStart(2, '0');
+            minsEl.textContent = String(m).padStart(2, '0');
+            secsEl.textContent = String(s).padStart(2, '0');
         }
         updateNearCounter();
         setInterval(updateNearCounter, 1000);
@@ -340,10 +363,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Standard User Countdown
     const rawBday = "{{ birthday_date }}";
-    let targetTime;
-    if (rawBday) {
-        targetTime = new Date(rawBday).getTime();
-    } else {
+    let targetTime = parseSafeDate(rawBday);
+    if (!targetTime) {
         const fallback = new Date();
         fallback.setHours(fallback.getHours() + 24);
         targetTime = fallback.getTime();
@@ -464,6 +485,7 @@ function openHeroPhotoPicker() { const input = document.getElementById("heroImag
 }
 </script>
 {% endblock %}
+
 
 
 
