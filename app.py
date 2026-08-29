@@ -1,4 +1,4 @@
-﻿# pyright: reportMissingImports=false
+# pyright: reportMissingImports=false
 # pylint: disable=import-error
 import os
 import sys

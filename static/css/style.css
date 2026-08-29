@@ -1710,3 +1710,101 @@ input:focus, textarea:focus, select:focus {
     transform: translateY(-2px);
     box-shadow: 0 6px 18px rgba(255, 77, 141, 0.4);
 }
+
+/* ====================================================
+   ADMIN REGISTRATION CARD & FORM MOBILE RESPONSIVE SUITE
+   ==================================================== */
+
+/* Full-width box-sizing for all form controls */
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    font-size: 16px !important; /* Prevents auto-zoom on iOS Safari & Android Chrome */
+}
+
+/* Input wrapper position and padding for eye toggle button */
+.input-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.input-wrapper input {
+    padding-right: 2.8rem !important; /* Prevents text colliding with eye button */
+}
+
+.toggle-password-btn {
+    position: absolute !important;
+    right: 0.75rem !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-muted) !important;
+    font-size: 1.1rem !important;
+    cursor: pointer !important;
+    padding: 0.2rem 0.5rem !important;
+    z-index: 5 !important;
+}
+
+/* File upload input styling for mobile */
+input[type="file"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    color: var(--text-muted) !important;
+}
+
+/* Datetime-local picker styling for mobile touch */
+input[type="datetime-local"] {
+    min-height: 48px !important;
+    color-scheme: dark !important;
+}
+
+/* Mobile & Tablet Breakpoint (<= 992px) */
+@media screen and (max-width: 992px) {
+    /* Stack admin dashboard grid into 1 full-width column */
+    .admin-grid,
+    .dashboard-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem !important;
+        width: 100% !important;
+    }
+
+    .admin-grid > div,
+    .dashboard-grid > div,
+    .admin-grid > .glass-panel,
+    .dashboard-grid > .glass-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 1.25rem !important;
+    }
+
+    /* Registration form title & submit button on mobile */
+    .glass-panel h2 {
+        font-size: 1.6rem !important;
+        word-break: break-word !important;
+    }
+
+    .glass-panel form .btn {
+        width: 100% !important;
+        padding: 0.9rem 1rem !important;
+        font-size: 1rem !important;
+        font-weight: 700 !important;
+        min-height: 48px !important;
+    }
+
+    /* Table responsive scroll container */
+    .admin-table {
+        min-width: 600px !important;
+    }
+}

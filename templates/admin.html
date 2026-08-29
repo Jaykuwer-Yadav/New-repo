@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 
 {% block title %}Admin Panel - Birthday Memories Vault{% endblock %}
 
@@ -86,7 +86,7 @@
 </div>
 {% endif %}
 
-<div class="dashboard-grid" style="grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+<div class="dashboard-grid">
     
     <!-- User Creation Panel -->
     <div class="glass-panel">
@@ -98,22 +98,22 @@
         <form action="{{ url_for('admin_create_user') }}" method="POST" enctype="multipart/form-data">
             <div class="form-group">
                 <label for="reg-name">Display Name (Recipient)</label>
-                <input type="text" id="reg-name" name="display_name" placeholder="e.g. Samira" required>
+                <input type="text" id="reg-name" name="display_name" autocomplete="name" placeholder="e.g. Samira" required>
             </div>
             <div class="form-group">
                 <label for="reg-email">Login Email Address</label>
-                <input type="email" id="reg-email" name="email" placeholder="e.g. samira@bday.com" required>
+                <input type="email" id="reg-email" name="email" autocomplete="email" placeholder="e.g. samira@bday.com" required>
             </div>
             <div class="form-group">
                 <label for="reg-password">Login Password</label>
                 <div class="input-wrapper">
-                    <input type="password" id="reg-password" name="password" placeholder="Set user password..." required>
+                    <input type="password" id="reg-password" name="password" autocomplete="new-password" placeholder="Set user password..." required>
                     <button type="button" class="toggle-password-btn" title="Toggle password visibility">👁️</button>
                 </div>
             </div>
             <div class="form-group">
                 <label for="reg-bday">Birth Date & Time</label>
-                <input type="datetime-local" id="reg-bday" name="birthday_date" required>
+                <input type="datetime-local" id="reg-bday" name="birthday_date" autocomplete="off" required>
             </div>
             
             <div class="form-group">
@@ -133,7 +133,7 @@
                     Master secondary PIN the user can use to unlock locked cards.
                 </p>
                 <div class="input-wrapper">
-                    <input type="password" id="reg-lock-key" name="user_lock_key" placeholder="e.g. secret123 (optional)">
+                    <input type="password" id="reg-lock-key" name="user_lock_key" autocomplete="off" placeholder="e.g. secret123 (optional)">
                     <button type="button" class="toggle-password-btn" title="Toggle key visibility">👁️</button>
                 </div>
             </div>
@@ -333,5 +333,6 @@ if (nearBdayAdmin) {
 {% endif %}
 </script>
 {% endblock %}
+
 
 
