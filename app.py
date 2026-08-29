@@ -746,51 +746,55 @@ def upload_memory():
     description = request.form.get("description", "").strip()
     media_type = request.form.get("media_type", "auto")
     is_locked = 1 if request.form.get("is_locked") == "on" else 0
-    lock_password = request.form.get("lock_password")
+    lock_password = request.form.get("lock_password", "")
     target_user_id = request.form.get("user_id")
     
     if "media" not in request.files or not title or not target_user_id:
-        flash("Title, recipient selection, and a media file are required.", "error")
+        flash("Title, recipient selection, and at least one media file are required.", "error")
         return redirect(url_for("memories"))
     
-    file = request.files["media"]
-    if not file or file.filename == "":
-        flash("No media file selected.", "error")
-        return redirect(url_for("memories"))
+    files = request.files.getlist("media")
+    valid_files = [f for f in files if f and f.filename and f.filename.strip()]
     
-    filename_lower = file.filename.lower()
+    if not valid_files:
+        flash("No valid media files selected.", "error")
+        return redirect(url_for("memories"))
+        
+    target_user = db_get_user_by_id(target_user_id)
+    recipient_name = target_user.get("display_name", "Recipient") if target_user else "Recipient"
+
+    uploaded_count = 0
     video_exts = (".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v", ".ogv")
     
-    is_video = 0
-    if media_type == "video":
-        is_video = 1
-    elif media_type == "image":
-        is_video = 0
-    elif (file.mimetype and file.mimetype.startswith("video/")) or filename_lower.endswith(video_exts):
-        is_video = 1
-    
-    safe_name = secure_filename(file.filename)
-    if not safe_name:
-        safe_name = "upload_" + ("video.mp4" if is_video else "photo.jpg")
-    unique_filename = f"{target_user_id}_{int(datetime.now().timestamp())}_{safe_name}"
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
-    file.save(filepath)
-    
-    media_web_path = f"/static/uploads/{unique_filename}"
-    
-    if firebase_bucket:
-        try:
-            blob = firebase_bucket.blob(f"memories/{unique_filename}")
-            blob.upload_from_filename(filepath)
-            blob.make_public()
-            if blob.public_url:
-                media_web_path = blob.public_url
-        except Exception as e:
-            print(f"[Firebase Storage] Memory upload notice: {e}")
-    
-    db_add_memory(target_user_id, title, description, media_web_path, is_video, is_locked, lock_password)
-    media_label = "Video" if is_video else "Photo"
-    flash(f"{media_label} memory '{title}' added to recipient chest! ðŸ“¸", "success")
+    for idx, file in enumerate(valid_files, 1):
+        filename_lower = file.filename.lower()
+        if media_type == "video":
+            is_vid = 1
+        elif media_type == "image":
+            is_vid = 0
+        else:
+            is_vid = 1 if filename_lower.endswith(video_exts) else 0
+
+        safe_name = secure_filename(file.filename)
+        unique_name = f"mem_{target_user_id}_{int(datetime.now().timestamp())}_{idx}_{safe_name}"
+        save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+        file.save(save_path)
+        rel_media_path = f"/static/uploads/{unique_name}"
+
+        item_title = title if len(valid_files) == 1 else f"{title} ({idx})"
+
+        db_add_memory(
+            user_id=target_user_id,
+            title=item_title,
+            description=description,
+            media_path=rel_media_path,
+            is_video=is_vid,
+            is_locked=is_locked,
+            lock_password=lock_password
+        )
+        uploaded_count += 1
+
+    flash(f"Successfully uploaded {uploaded_count} memory item(s) to {recipient_name}'s Memory Chest!", "success")
     return redirect(url_for("memories"))
 
 @app.route("/api/unlock-memory", methods=["POST"])

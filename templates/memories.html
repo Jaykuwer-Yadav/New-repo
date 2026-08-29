@@ -46,12 +46,12 @@
             </label>
             <div class="media-type-selector">
                 <label class="media-type-pill active" id="pill-photo">
-                    <input type="radi➔ name="media_type" value="image" checked onchange="updateMediaChoice('image')">
+                    <input type="radio" name="media_type" value="image" checked onchange="updateMediaChoice('image')">
                     <span class="pill-icon">📸</span>
                     <span class="pill-text">Photo / Image</span>
                 </label>
                 <label class="media-type-pill" id="pill-video">
-                    <input type="radi➔ name="media_type" value="vide➔ onchange="updateMediaChoice('video')">
+                    <input type="radio" name="media_type" value="video" onchange="updateMediaChoice('video')">
                     <span class="pill-icon">🎥</span>
                     <span class="pill-text">Video Recording</span>
                 </label>
@@ -61,7 +61,7 @@
         <!-- Open File Input supporting all Image and Video formats -->
         <div class="form-group file-upload-box">
             <label for="mem-media" id="mediaUploadLabel">📂 Choose Photo or Video File</label>
-            <input type="file" id="mem-media" name="media" accept="image/*,video/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.ogv,.jpg,.jpeg,.png,.gif,.webp,.svg,.heic" required>
+            <input type="file" id="mem-media" name="media" accept="image/*,video/*,.mp4,.mov,.webm,.mkv,.avi,.m4v,.ogv,.jpg,.jpeg,.png,.gif,.webp,.svg,.heic" required multiple>
             <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.4rem; display: block;">
                 All formats supported (MP4, MOV, WebM, MKV, AVI, JPG, PNG, GIF, WebP, etc. up to 64MB)
             </small>
