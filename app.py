@@ -643,6 +643,7 @@ def memories():
 # ----------------------------------------------------
 
 @app.route("/api/upload-hero-photo", methods=["POST"])
+@admin_required
 def upload_hero_photo():
     if not is_logged_in():
         return redirect(url_for("login"))

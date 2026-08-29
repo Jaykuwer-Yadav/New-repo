@@ -122,40 +122,54 @@
                 </div>
             </div>
 
-            <!-- Main Center Hero Polaroid with Washi Tape & 1-Click Upload -->
+                        <!-- Main Center Hero Polaroid -->
             <div class="main-polaroid">
                 <div class="washi-tape"></div>
                 
-                <!-- Clickable Polaroid Frame (Click anywhere on photo to upload) -->
-                <div class="polaroid-photo-frame" onclick="openHeroPhotoPicker()" style="cursor: pointer; display: block;" title="Click anywhere to upload or change your birthday photo!">
+                {% if user_role == 'admin' %}
+                <!-- Admin Clickable Photo Frame & Upload Controls -->
+                <div class="polaroid-photo-frame" onclick="openHeroPhotoPicker()" style="cursor: pointer; display: block;" title="Admin: Click to change photo">
                     {% if user_data and user_data.profile_pic %}
                     <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
                     {% elif recent_memories and recent_memories|length > 0 %}
                     <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img">
                     {% else %}
                     <div class="hero-portrait-fallback">
-                        <span class="fallback-cake">🎂</span>
+                        <span class="fallback-cake">&#127874;</span>
                         <span class="fallback-text">{{ display_name }}</span>
-                        <span style="font-size: 0.8rem; color: var(--accent-yellow); margin-top: 0.5rem; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 999px;">📷 Tap to Add Photo</span>
+                        <span style="font-size: 0.8rem; color: var(--accent-yellow); margin-top: 0.5rem; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 999px;">&#128247; Admin: Tap to Add Photo</span>
                     </div>
                     {% endif %}
                     
-                    <!-- Hover Camera Overlay -->
                     <div class="polaroid-hover-overlay">
-                        <span style="font-size: 2rem;">📷</span>
+                        <span style="font-size: 2rem;">&#128247;</span>
                         <span style="font-size: 0.85rem; font-weight: 700; color: #fff;">Change Photo</span>
                     </div>
                 </div>
                 
-                <!-- Direct Upload Button under Polaroid -->
-                <button type="button" class="change-photo-btn-pill" onclick="openHeroPhotoPicker()" title="Upload or change hero photo">
-                    <span>📷</span>
+                <button type="button" class="change-photo-btn-pill" onclick="openHeroPhotoPicker()" title="Admin: Upload or change hero photo">
+                    <span>&#128247;</span>
                     <span>Upload / Change Photo</span>
                 </button>
 
                 <form action="{{ url_for('upload_hero_photo') }}" method="POST" enctype="multipart/form-data" id="heroPhotoForm" style="display: none;">
                     <input type="file" id="heroImageInput" name="hero_image" accept="image/*" onchange="document.getElementById('heroPhotoForm').submit();">
                 </form>
+                {% else %}
+                <!-- Standard User Read-Only Photo Frame (No Upload / Remove Access) -->
+                <div class="polaroid-photo-frame" style="cursor: default; display: block;">
+                    {% if user_data and user_data.profile_pic %}
+                    <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    {% elif recent_memories and recent_memories|length > 0 %}
+                    <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    {% else %}
+                    <div class="hero-portrait-fallback">
+                        <span class="fallback-cake">&#127874;</span>
+                        <span class="fallback-text">{{ display_name }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
             </div>
 
             <!-- Right tilted mini snapshot -->
