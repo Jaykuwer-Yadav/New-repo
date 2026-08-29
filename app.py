@@ -404,16 +404,8 @@ def is_logged_in():
     return "user_id" in session
 
 def is_birthday_arrived():
-    if session.get("user_role") == "admin":
-        return True
-    bday_str = session.get("birthday_date")
-    if not bday_str:
-        return True
-    try:
-        bday_time = datetime.strptime(bday_str, "%Y-%m-%dT%H:%M")
-        return datetime.now() >= bday_time
-    except Exception:
-        return True
+    # Unlocked 100% for testing as requested
+    return True
 
 def birthday_required(f):
     @wraps(f)
@@ -900,6 +892,7 @@ def admin_change_credentials():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
 
 
 

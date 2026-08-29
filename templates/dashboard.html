@@ -370,10 +370,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     {% endif %}
 
-    // Standard User Countdown
+    // Standard User Countdown (Synced with Timer.html Engine)
     const rawBday = "{{ birthday_date }}";
     let targetTime = parseSafeDate(rawBday);
-    if (!targetTime) {
+    const now = Date.now();
+    if (!targetTime || targetTime <= now) {
         const fallback = new Date();
         fallback.setHours(fallback.getHours() + 24);
         targetTime = fallback.getTime();
@@ -388,12 +389,14 @@ document.addEventListener("DOMContentLoaded", () => {
     
     function updateCounter() {
         if (!cdBox) return;
-        const now = Date.now();
-        const diff = targetTime - now;
+        const curNow = Date.now();
+        const diff = targetTime - curNow;
         
         if (diff <= 0) {
-            cdBox.style.display = "none";
-            if (celebMsg) celebMsg.style.display = "block";
+            if (daysEl) daysEl.textContent = "00";
+            if (hoursEl) hoursEl.textContent = "00";
+            if (minsEl) minsEl.textContent = "00";
+            if (secsEl) secsEl.textContent = "00";
             return;
         }
         
@@ -499,6 +502,7 @@ function initScratchCard() {
 }
 </script>
 {% endblock %}
+
 
 
 
