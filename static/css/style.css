@@ -1886,3 +1886,180 @@ input[type="datetime-local"] {
         gap: 1rem !important;
     }
 }
+
+/* ====================================================
+   390px iPHONE & ANDROID MOBILE RESPONSIVE MASTER SUITE
+   ==================================================== */
+
+/* Global horizontal overflow prevention */
+html, body {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+}
+
+*, *:before, *:after {
+    box-sizing: border-box !important;
+}
+
+@media screen and (max-width: 480px) {
+    /* 390px Container padding */
+    .main-container,
+    .page-container,
+    .container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        margin: 0 auto !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Glass Panels & Auth Cards */
+    .glass-panel,
+    .auth-card {
+        padding: 1.25rem 0.85rem !important;
+        border-radius: 16px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    /* Headings on 390px */
+    h1, .h1 {
+        font-size: 2.1rem !important;
+        line-height: 1.2 !important;
+        word-break: break-word !important;
+    }
+
+    h2, .h2 {
+        font-size: 1.65rem !important;
+        line-height: 1.25 !important;
+        word-break: break-word !important;
+    }
+
+    h3, .h3 {
+        font-size: 1.25rem !important;
+        word-break: break-word !important;
+    }
+
+    /* Navbar on 390px */
+    .main-header {
+        padding: 0.75rem !important;
+        flex-direction: column !important;
+        gap: 0.75rem !important;
+    }
+
+    .nav-links {
+        width: 100% !important;
+        justify-content: center !important;
+        gap: 0.4rem !important;
+        flex-wrap: wrap !important;
+    }
+
+    .nav-link {
+        padding: 0.4rem 0.65rem !important;
+        font-size: 0.82rem !important;
+    }
+
+    /* Admin & Dashboard Grids */
+    .admin-grid,
+    .dashboard-grid,
+    .admin-dashboard-grid,
+    .gallery-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 1.25rem !important;
+    }
+
+    /* Tables on 390px */
+    .admin-table-container,
+    div[style*="overflow-x: auto"] {
+        width: 100% !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    .admin-table {
+        min-width: 540px !important;
+        font-size: 0.82rem !important;
+    }
+
+    /* Form Controls on 390px */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="datetime-local"],
+    select,
+    textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        font-size: 16px !important; /* Prevents auto-zoom on iOS Safari at 390px */
+        padding: 0.75rem 0.85rem !important;
+    }
+
+    .btn,
+    button[type="submit"] {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 0.85rem 1rem !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        min-height: 48px !important;
+    }
+
+    /* Dashboard Polaroid on 390px */
+    .main-polaroid {
+        width: 100% !important;
+        max-width: 320px !important;
+        margin: 0 auto !important;
+        padding: 12px 12px 24px 12px !important;
+    }
+
+    .polaroid-photo-frame {
+        width: 100% !important;
+        height: 280px !important;
+    }
+
+    .hero-portrait-img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+    }
+
+    /* Countdown timer units on 390px */
+    .countdown-timer-box,
+    .timer-display {
+        gap: 0.4rem !important;
+    }
+
+    .timer-num {
+        font-size: 1.75rem !important;
+    }
+
+    .timer-label {
+        font-size: 0.7rem !important;
+    }
+
+    /* Media Selector Pills on 390px */
+    .media-type-selector {
+        flex-direction: column !important;
+        gap: 0.65rem !important;
+        width: 100% !important;
+    }
+
+    .media-type-pill {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 0.75rem !important;
+        white-space: nowrap !important;
+        justify-content: center !important;
+    }
+}
