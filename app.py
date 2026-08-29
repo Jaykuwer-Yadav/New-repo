@@ -797,6 +797,29 @@ def upload_memory():
     flash(f"Successfully uploaded {uploaded_count} memory item(s) to {recipient_name}'s Memory Chest!", "success")
     return redirect(url_for("memories"))
 
+
+@app.route("/api/delete-memory/<memory_id>", methods=["POST"])
+@admin_required
+def delete_memory(memory_id):
+    try:
+        mem = db_get_memory_by_id(memory_id)
+        if mem:
+            media_path = mem.get("media_path", "")
+            if media_path and media_path.startswith("/static/"):
+                local_path = media_path.lstrip("/")
+                if os.path.exists(local_path):
+                    try:
+                        os.remove(local_path)
+                    except Exception as e:
+                        print(f"[Delete Memory File Error] {e}")
+            fs_delete_doc("memories", str(memory_id))
+            flash("Memory item deleted successfully!", "success")
+        else:
+            flash("Memory item not found.", "error")
+    except Exception as e:
+        flash(f"Error deleting memory: {str(e)}", "error")
+    return redirect(url_for("memories"))
+
 @app.route("/api/unlock-memory", methods=["POST"])
 def unlock_memory():
     if not is_logged_in():

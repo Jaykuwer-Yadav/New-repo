@@ -138,6 +138,13 @@
                             <p style="font-size: 0.8rem; color: var(--accent-blue); margin-bottom: 0.3rem;">For: {{ memory.recipient_name }}</p>
                             {% endif %}
                             <p class="memory-desc" id="desc-{{ memory.id }}">🔒 Unlock with password or secondary key to view.</p>
+                            {% if user_role == 'admin' %}
+                            <form action="{{ url_for('delete_memory', memory_id=memory.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this memory permanently?');" style="margin-top: 0.75rem;">
+                                <button type="submit" class="btn btn-secondary" style="width: 100%; padding: 0.4rem 0.8rem; font-size: 0.82rem; border-color: rgba(255, 77, 77, 0.4); color: #ff4d4d; background: rgba(255, 77, 77, 0.08);">
+                                    🗑️ Delete Memory
+                                </button>
+                            </form>
+                            {% endif %}
                         </div>
                     </div>
                 {% else %}
@@ -167,6 +174,13 @@
                             <p style="font-size: 0.8rem; color: var(--accent-blue); margin-bottom: 0.3rem;">For: {{ memory.recipient_name }}</p>
                             {% endif %}
                             <p class="memory-desc">{{ memory.description }}</p>
+                            {% if user_role == 'admin' %}
+                            <form action="{{ url_for('delete_memory', memory_id=memory.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this memory permanently?');" style="margin-top: 0.75rem;">
+                                <button type="submit" class="btn btn-secondary" style="width: 100%; padding: 0.4rem 0.8rem; font-size: 0.82rem; border-color: rgba(255, 77, 77, 0.4); color: #ff4d4d; background: rgba(255, 77, 77, 0.08);">
+                                    🗑️ Delete Memory
+                                </button>
+                            </form>
+                            {% endif %}
                         </div>
                     </div>
                 {% endif %}
