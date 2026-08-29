@@ -43,8 +43,8 @@
 
                 <!-- Admin Countdown to Nearest Birthday -->
                 <div class="countdown-box nearest-counter" id="nearestCountdownBox" style="margin: 1.2rem 0; justify-content: flex-start;">
-                    <div class="timer-segment"><div class="timer-val" id="near-days">00</div><div class="timer-lbl">Days</div></div>
-                    <div class="timer-segment"><div class="timer-val" id="near-hours">00</div><div class="timer-lbl">Hours</div></div>
+                    <div class="timer-segment"><div class="timer-val" id="near-days">{{ '%02d' % nearest_bday.days_left if nearest_bday and nearest_bday.days_left is defined and nearest_bday.days_left > 0 else '00' }}</div><div class="timer-lbl">Days</div></div>
+                    <div class="timer-segment"><div class="timer-val" id="near-hours">{{ '%02d' % nearest_bday.hours_left if nearest_bday and nearest_bday.hours_left is defined else '00' }}</div><div class="timer-lbl">Hours</div></div>
                     <div class="timer-segment"><div class="timer-val" id="near-minutes">00</div><div class="timer-lbl">Minutes</div></div>
                     <div class="timer-segment"><div class="timer-val" id="near-seconds">00</div><div class="timer-lbl">Seconds</div></div>
                 </div>
@@ -310,17 +310,19 @@
 // ==========================================
 function parseSafeDate(str) {
     if (!str) return null;
-    let s = str.trim();
-    if (s.includes("T") && s.split(":").length === 2) {
-        s += ":00";
+    let s = str.trim().replace("T", " ");
+    const parts = s.split(/[-/ :]/);
+    if (parts.length >= 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        const hh = parts.length > 3 ? parseInt(parts[3], 10) : 0;
+        const mm = parts.length > 4 ? parseInt(parts[4], 10) : 0;
+        const ss = parts.length > 5 ? parseInt(parts[5], 10) : 0;
+        return new Date(y, m, d, hh, mm, ss).getTime();
     }
     const d = new Date(s);
-    if (!isNaN(d.getTime())) return d.getTime();
-    const parts = s.split(/[-T :]/);
-    if (parts.length >= 3) {
-        return new Date(parts[0], parts[1] - 1, parts[2], parts[3] || 0, parts[4] || 0, parts[5] || 0).getTime();
-    }
-    return null;
+    return isNaN(d.getTime()) ? null : d.getTime();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -490,6 +492,7 @@ function initScratchCard() {
 }
 </script>
 {% endblock %}
+
 
 
 
