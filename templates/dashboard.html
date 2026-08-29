@@ -130,9 +130,9 @@
                 <!-- Admin Clickable Photo Frame & Upload Controls -->
                 <div class="polaroid-photo-frame" onclick="openHeroPhotoPicker()" style="cursor: pointer; display: block;" title="Admin: Click to change photo">
                     {% if user_data and user_data.profile_pic %}
-                    <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
                     {% elif recent_memories and recent_memories|length > 0 %}
-                    <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
                     {% else %}
                     <div class="hero-portrait-fallback">
                         <span class="fallback-cake">&#127874;</span>
@@ -159,9 +159,9 @@
                 <!-- Standard User Read-Only Photo Frame (No Upload / Remove Access) -->
                 <div class="polaroid-photo-frame" style="cursor: default; display: block;">
                     {% if user_data and user_data.profile_pic %}
-                    <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
                     {% elif recent_memories and recent_memories|length > 0 %}
-                    <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img">
+                    <img src="{{ recent_memories[0].media_path }}" alt="{{ display_name }}" class="hero-portrait-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
                     {% else %}
                     <div class="hero-portrait-fallback">
                         <span class="fallback-cake">&#127874;</span>
