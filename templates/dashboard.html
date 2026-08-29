@@ -412,7 +412,12 @@ document.addEventListener("DOMContentLoaded", () => {
 // ==========================================
 // 2. Interactive Scratch Card Engine
 // ==========================================
-function openHeroPhotoPicker() { const input = document.getElementById("heroImageInput"); if (input) input.click(); }`n`nfunction initScratchCard() {
+function openHeroPhotoPicker() {
+    const input = document.getElementById("heroImageInput");
+    if (input) input.click();
+}
+
+function initScratchCard() {
     const canvas = document.getElementById("scratchCanvas");
     if (!canvas) return;
     
@@ -485,6 +490,7 @@ function openHeroPhotoPicker() { const input = document.getElementById("heroImag
 }
 </script>
 {% endblock %}
+
 
 
 
