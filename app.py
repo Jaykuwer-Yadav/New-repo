@@ -631,10 +631,15 @@ def notes():
 @birthday_required
 def memories():
     if session.get("user_role") == "admin":
-        memories_list = db_get_memories()
+        selected_user_id = request.args.get("user_id")
+        if selected_user_id:
+            memories_list = db_get_memories(selected_user_id)
+        else:
+            memories_list = db_get_memories()
         users_list = db_get_all_standard_users()
-        return render_template("memories.html", memories=memories_list, users=users_list)
+        return render_template("memories.html", memories=memories_list, users=users_list, selected_user_id=selected_user_id)
     else:
+        # Standard user ONLY sees their own user_id memories from Firestore
         memories_list = db_get_memories(session["user_id"])
         return render_template("memories.html", memories=memories_list)
 

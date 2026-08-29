@@ -91,7 +91,21 @@
 <!-- Memories Gallery -->
 <div class="glass-panel">
     <h1 class="gradient-text title-serif" style="font-size: 2.8rem; margin-bottom: 0.5rem; text-align: center;">Memory Chest 💎</h1>
-    <p style="text-align: center; margin-bottom: 2.5rem; color: var(--text-muted);">A secure vault of precious times, moments, and videos.</p>
+        <p style="text-align: center; margin-bottom: 1.5rem; color: var(--text-muted);">A secure vault of precious times, moments, and videos.</p>
+
+    {% if user_role == 'admin' and users %}
+    <div class="admin-filter-bar" style="margin-bottom: 2rem; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.6rem;">
+        <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Filter by Recipient:</span>
+        <a href="{{ url_for('memories') }}" class="btn btn-secondary {% if not selected_user_id %}active-filter{% endif %}" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; border-radius: 999px; {% if not selected_user_id %}border-color: var(--accent); color: #fff; background: rgba(255, 77, 141, 0.2);{% endif %}">
+            👥 All Recipients
+        </a>
+        {% for u in users %}
+        <a href="{{ url_for('memories', user_id=u.id) }}" class="btn btn-secondary {% if selected_user_id == u.id %}active-filter{% endif %}" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; border-radius: 999px; {% if selected_user_id == u.id %}border-color: var(--accent-yellow); color: var(--accent-yellow); background: rgba(255, 214, 77, 0.15);{% endif %}">
+            👤 {{ u.display_name }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if not memories %}
         <div style="text-align: center; padding: 4rem 0; color: var(--text-muted);">
