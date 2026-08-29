@@ -30,7 +30,7 @@ from firebase_admin import credentials, storage
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "birthday_memories_secret_key_for_sessions_2026")
 app.config["UPLOAD_FOLDER"] = os.path.join("static", "uploads")
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64MB max upload
+app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024  # 512MB max upload limit
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs("templates", exist_ok=True)
@@ -976,3 +976,9 @@ if __name__ == "__main__":
 
 
 
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash("Upload failed: Total file size exceeds the maximum limit (512MB). Please upload fewer files at once or compress large videos.", "error")
+    return redirect(request.referrer or url_for("memories"))
