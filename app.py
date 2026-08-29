@@ -437,35 +437,57 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_next_annual_bday(bday_str):
+    if not bday_str:
+        return None
+    try:
+        now = datetime.now()
+        clean_str = bday_str.strip()[:16]
+        dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M")
+        
+        # Target same month & day in current year
+        target = dt.replace(year=now.year)
+        if target <= now:
+            try:
+                target = target.replace(year=now.year + 1)
+            except ValueError: # Handle leap year Feb 29
+                target = target.replace(year=now.year + 1, day=28)
+        
+        diff = target - now
+        return {
+            "target_str": target.strftime("%Y-%m-%dT%H:%M"),
+            "days_left": diff.days,
+            "hours_left": int((diff.total_seconds() % 86400) // 3600),
+            "diff_seconds": diff.total_seconds()
+        }
+    except Exception as e:
+        print(f"[Birthday Calc Error] {e}")
+        return None
+
 def get_nearest_birthdays():
     users = db_get_all_standard_users()
-    now = datetime.now()
     upcoming = []
     
     for u in users:
-        if not u.get("birthday_date"):
+        bday_raw = u.get("birthday_date")
+        if not bday_raw:
             continue
-        try:
-            bdate = datetime.strptime(u["birthday_date"], "%Y-%m-%dT%H:%M")
-            diff = bdate - now
+        info = get_next_annual_bday(bday_raw)
+        if info:
             upcoming.append({
                 "id": u["id"],
                 "display_name": u.get("display_name") or u.get("email"),
                 "email": u.get("email"),
-                "birthday_date": u.get("birthday_date"),
+                "birthday_date": info["target_str"],
+                "original_birthday_date": bday_raw,
                 "profile_pic": u.get("profile_pic"),
-                "diff_seconds": diff.total_seconds(),
-                "is_past": diff.total_seconds() <= 0,
-                "days_left": diff.days,
-                "hours_left": int((diff.total_seconds() % 86400) // 3600)
+                "diff_seconds": info["diff_seconds"],
+                "is_past": False,
+                "days_left": info["days_left"],
+                "hours_left": info["hours_left"]
             })
-        except Exception:
-            continue
             
-    future_bday = sorted([u for u in upcoming if not u["is_past"]], key=lambda x: x["diff_seconds"])
-    past_bday = sorted([u for u in upcoming if u["is_past"]], key=lambda x: abs(x["diff_seconds"]))
-    
-    sorted_upcoming = future_bday + past_bday
+    sorted_upcoming = sorted(upcoming, key=lambda x: x["diff_seconds"])
     nearest = sorted_upcoming[0] if sorted_upcoming else None
     return nearest, sorted_upcoming
 
@@ -503,10 +525,17 @@ def index():
     if session.get("user_role") == "admin":
         nearest_bday, all_upcoming = get_nearest_birthdays()
         
+    user_bday_info = get_next_annual_bday(session.get("birthday_date"))
+    user_days_left = user_bday_info["days_left"] if user_bday_info else 0
+    user_hours_left = user_bday_info["hours_left"] if user_bday_info else 0
+    target_bday_str = user_bday_info["target_str"] if user_bday_info else session.get("birthday_date")
+
     return render_template(
         "dashboard.html", 
         earned_badges=badges, 
-        birthday_date=session.get("birthday_date"),
+        birthday_date=target_bday_str,
+        user_days_left=user_days_left,
+        user_hours_left=user_hours_left,
         note_count=note_count,
         user_data=current_user,
         recent_memories=recent_memories,
@@ -871,6 +900,7 @@ def admin_change_credentials():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
 
 
 
