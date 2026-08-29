@@ -300,7 +300,7 @@ def db_create_user(display_name, email, password, birthday_date, lock_key="", pr
         "lock_key_hash": lock_hash,
         "plain_lock_key": lock_key if lock_key else None,
         "profile_pic": profile_pic,
-        "scratch_reward": scratch_reward or "🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁",
+        "scratch_reward": scratch_reward or "ðŸŽ‰ Congratulations! You unlocked a special birthday surprise and gift from all of us! ðŸŽ",
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
     }
     
@@ -335,7 +335,7 @@ def db_get_notes(user_id=None):
             n["recipient_email"] = u.get("email")
     return sorted(notes, key=lambda x: str(x.get("created_at", "")), reverse=True)
 
-def db_add_note(user_id, sender_name, title, message, icon="💌"):
+def db_add_note(user_id, sender_name, title, message, icon="ðŸ’Œ"):
     note_id = str(uuid.uuid4())[:8]
     fs_set_doc("notes", note_id, {
         "id": note_id,
@@ -422,8 +422,26 @@ def is_logged_in():
     return "user_id" in session
 
 def is_birthday_arrived():
-    # Unlocked 100% for testing as requested
-    return True
+    if session.get("user_role") == "admin":
+        return True
+    if is_test_mode_unlocked():
+        return True
+    bday_str = session.get("birthday_date")
+    if not bday_str:
+        return True
+    try:
+        clean_str = bday_str.strip()[:16]
+        bdate = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M")
+        now = datetime.now()
+        
+        # If today is their birthday (same month and day) -> Arrived!
+        if now.month == bdate.month and now.day == bdate.day:
+            return True
+        # Otherwise -> Locked until birthday!
+        return False
+    except Exception as e:
+        print(f"[Birthday Lock Check Error] {e}")
+        return True
 
 def birthday_required(f):
     @wraps(f)
@@ -431,7 +449,7 @@ def birthday_required(f):
         if not is_logged_in():
             return redirect(url_for("login"))
         if not is_birthday_arrived():
-            flash("🔒 This section is locked! It will open when your birthday countdown reaches zero. ⏳", "info")
+            flash("ðŸ”’ This section is locked! It will open when your birthday countdown reaches zero. â³", "info")
             return redirect(url_for("timer"))
         return f(*args, **kwargs)
     return decorated_function
@@ -574,7 +592,7 @@ def login():
             session["user_role"] = user.get("role", "user")
             session["display_name"] = user.get("display_name") or user["email"].split("@")[0]
             session["birthday_date"] = user.get("birthday_date")
-            flash(f"Welcome back, {session['display_name']}! 🎉", "success")
+            flash(f"Welcome back, {session['display_name']}! ðŸŽ‰", "success")
             return redirect(url_for("index"))
         else:
             flash("Invalid email or password.", "error")
@@ -671,7 +689,7 @@ def upload_hero_photo():
             print(f"[Firebase Storage] Hero upload notice: {e}")
     
     db_update_user_profile_pic(target_user_id, photo_path)
-    flash("Hero portrait photo updated successfully! 📸", "success")
+    flash("Hero portrait photo updated successfully! ðŸ“¸", "success")
     return redirect(url_for(redirect_dest))
 
 @app.route("/api/add-note", methods=["POST"])
@@ -680,7 +698,7 @@ def add_note():
     sender_name = request.form.get("sender_name", "").strip() or session.get("display_name", "A Friend")
     title = request.form.get("title", "").strip()
     message = request.form.get("message", "").strip()
-    icon = request.form.get("icon", "💌")
+    icon = request.form.get("icon", "ðŸ’Œ")
     target_user_id = request.form.get("user_id")
         
     if not title or not message or not target_user_id:
@@ -688,7 +706,7 @@ def add_note():
         return redirect(url_for("notes"))
         
     db_add_note(target_user_id, sender_name, title, message, icon)
-    flash("Birthday Note & Letter added successfully! 💌", "success")
+    flash("Birthday Note & Letter added successfully! ðŸ’Œ", "success")
     return redirect(url_for("notes"))
 
 @app.route("/api/delete-note/<string:note_id>", methods=["POST"])
@@ -771,7 +789,7 @@ def upload_memory():
     
     db_add_memory(target_user_id, title, description, media_web_path, is_video, is_locked, lock_password)
     media_label = "Video" if is_video else "Photo"
-    flash(f"{media_label} memory '{title}' added to recipient chest! 📸", "success")
+    flash(f"{media_label} memory '{title}' added to recipient chest! ðŸ“¸", "success")
     return redirect(url_for("memories"))
 
 @app.route("/api/unlock-memory", methods=["POST"])
@@ -827,7 +845,7 @@ def admin_create_user():
     display_name = request.form.get("display_name", "").strip()
     birthday_date = request.form.get("birthday_date")
     user_lock_key = request.form.get("user_lock_key", "").strip()
-    scratch_reward = request.form.get("scratch_reward", "").strip() or "🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁"
+    scratch_reward = request.form.get("scratch_reward", "").strip() or "ðŸŽ‰ Congratulations! You unlocked a special birthday surprise and gift from all of us! ðŸŽ"
     
     if not email or not password or not display_name or not birthday_date:
         flash("Display Name, Email, Password, and Birthday Date are required.", "error")
@@ -901,7 +919,7 @@ def admin_change_credentials():
     if fs_set_doc("users", str(admin_id), admin_data):
         session["user_email"] = new_email
         session["display_name"] = new_name
-        flash("Admin credentials updated successfully! 🔑", "success")
+        flash("Admin credentials updated successfully! ðŸ”‘", "success")
     else:
         flash("Error updating admin credentials.", "error")
         
@@ -922,6 +940,8 @@ def admin_toggle_test_mode():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+
 
 
 

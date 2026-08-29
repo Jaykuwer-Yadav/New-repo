@@ -1808,3 +1808,70 @@ input[type="datetime-local"] {
         min-width: 600px !important;
     }
 }
+
+/* ====================================================
+   MEMORY CHEST GALLERY & CARDS MOBILE RESPONSIVE SUITE
+   ==================================================== */
+@media screen and (max-width: 900px) {
+    .gallery-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1.5rem !important;
+        width: 100% !important;
+    }
+
+    .memory-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .image-container {
+        height: auto !important;
+        min-height: 220px !important;
+        max-height: 480px !important;
+        width: 100% !important;
+    }
+
+    .memory-img,
+    .memory-video {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 220px !important;
+        max-height: 480px !important;
+        object-fit: cover !important;
+    }
+
+    .memory-info {
+        padding: 1.1rem !important;
+    }
+
+    .memory-title {
+        font-size: 1.2rem !important;
+        word-break: break-word !important;
+    }
+
+    .lock-overlay {
+        padding: 1rem !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .unlock-form {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.5rem !important;
+    }
+
+    .unlock-form input {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        font-size: 16px !important;
+    }
+
+    .unlock-form .btn {
+        width: 100% !important;
+        padding: 0.75rem !important;
+    }
+}
