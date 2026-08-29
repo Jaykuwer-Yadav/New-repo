@@ -400,6 +400,24 @@ def db_earn_badge(user_id, badge_name):
 # 4. HELPER FUNCTIONS & MIDDLEWARES
 # ----------------------------------------------------
 
+# ----------------------------------------------------
+# GLOBAL APP SETTINGS (FIRESTORE)
+# ----------------------------------------------------
+def is_test_mode_unlocked():
+    try:
+        doc = fs_get_doc("settings", "app_config")
+        if doc:
+            return bool(doc.get("test_mode_unlocked", False))
+    except Exception as e:
+        print(f"[Settings] error: {e}")
+    return False
+
+def set_test_mode_unlocked(unlocked_bool):
+    try:
+        fs_set_doc("settings", "app_config", {"test_mode_unlocked": bool(unlocked_bool)})
+    except Exception as e:
+        print(f"[Settings] set error: {e}")
+
 def is_logged_in():
     return "user_id" in session
 
@@ -889,9 +907,22 @@ def admin_change_credentials():
         
     return redirect(url_for("admin_panel"))
 
+@app.route("/admin/toggle-test-mode", methods=["POST"])
+@admin_required
+def admin_toggle_test_mode():
+    current = is_test_mode_unlocked()
+    new_state = not current
+    set_test_mode_unlocked(new_state)
+    if new_state:
+        flash("TEST MODE ACTIVATED: All birthday locks removed for testing!", "success")
+    else:
+        flash("STRICT BIRTHDAY LOCKS ENFORCED!", "info")
+    return redirect(request.referrer or url_for("admin_panel"))
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
 
 
 
