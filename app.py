@@ -1,3 +1,33 @@
+
+import base64
+
+def file_to_data_uri(file_storage):
+    file_storage.seek(0)
+    file_bytes = file_storage.read()
+    file_storage.seek(0) # reset for disk save if needed
+    
+    filename = file_storage.filename.lower()
+    if filename.endswith(".png"):
+        mime = "image/png"
+    elif filename.endswith(".gif"):
+        mime = "image/gif"
+    elif filename.endswith(".webp"):
+        mime = "image/webp"
+    elif filename.endswith(".svg"):
+        mime = "image/svg+xml"
+    elif filename.endswith(".mp4"):
+        mime = "video/mp4"
+    elif filename.endswith(".webm"):
+        mime = "video/webm"
+    elif filename.endswith(".mov"):
+        mime = "video/quicktime"
+    else:
+        mime = "image/jpeg"
+        
+    b64_str = base64.b64encode(file_bytes).decode("utf-8")
+    return f"data:{mime};base64,{b64_str}"
+
+
 # pyright: reportMissingImports=false
 # pylint: disable=import-error
 import os
@@ -668,34 +698,13 @@ def upload_hero_photo():
         flash("No image file selected.", "error")
         return redirect(url_for(redirect_dest))
         
-    safe_name = secure_filename(file.filename)
-    unique_name = f"hero_{target_user_id}_{int(datetime.now().timestamp())}_{safe_name}"
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+    # Generate permanent Data URI for Firestore cloud database
+    data_uri = file_to_data_uri(file)
     
-    # Read image content
-    file_bytes = file.read()
-    with open(filepath, "wb") as f:
-        f.write(file_bytes)
-        
-    # Generate Base64 Data URL for permanent 100% Cloud Firestore persistence
-    import base64
-    mime = file.mimetype or "image/jpeg"
-    b64_data = base64.b64encode(file_bytes).decode("utf-8")
-    photo_path = f"data:{mime};base64,{b64_data}"
+    # Save profile_pic permanently in Cloud Firestore
+    fs_update_doc("users", str(target_user_id), {"profile_pic": data_uri})
     
-    # Also attempt Firebase Storage if active
-    if firebase_bucket:
-        try:
-            blob = firebase_bucket.blob(f"hero_photos/{unique_name}")
-            blob.upload_from_filename(filepath)
-            blob.make_public()
-            if blob.public_url:
-                photo_path = blob.public_url
-        except Exception as e:
-            print(f"[Firebase Storage] Hero upload notice: {e}")
-    
-    db_update_user_profile_pic(target_user_id, photo_path)
-    flash("Hero portrait photo updated successfully! ðŸ“¸", "success")
+    flash("Hero photo updated permanently!", "success")
     return redirect(url_for(redirect_dest))
 
 @app.route("/api/add-note", methods=["POST"])
@@ -780,26 +789,22 @@ def upload_memory():
         else:
             is_vid = 1 if filename_lower.endswith(video_exts) else 0
 
-        safe_name = secure_filename(file.filename)
-        unique_name = f"mem_{target_user_id}_{int(datetime.now().timestamp())}_{idx}_{safe_name}"
-        save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
-        file.save(save_path)
-        rel_media_path = f"/static/uploads/{unique_name}"
-
+        # Generate permanent Data URI for Firestore cloud database
+        data_uri = file_to_data_uri(file)
         item_title = title if len(valid_files) == 1 else f"{title} ({idx})"
 
         db_add_memory(
             user_id=target_user_id,
             title=item_title,
             description=description,
-            media_path=rel_media_path,
+            media_path=data_uri,
             is_video=is_vid,
             is_locked=is_locked,
             lock_password=lock_password
         )
         uploaded_count += 1
 
-    flash(f"Successfully uploaded {uploaded_count} memory item(s) to {recipient_name}'s Memory Chest!", "success")
+    flash(f"Successfully uploaded {uploaded_count} permanent memory item(s) to {recipient_name}'s Memory Chest!", "success")
     return redirect(url_for("memories"))
 
 
