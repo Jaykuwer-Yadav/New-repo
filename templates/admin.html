@@ -171,6 +171,7 @@
                             <th>Password 🔑</th>
                             <th>Secondary Key 🔒</th>
                             <th>Birth Date 🎂</th>
+                            <th>Surprise Gift 🎁</th>
                             <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
@@ -227,6 +228,14 @@
                                     {% endif %}
                                 </td>
                                 <td style="color: var(--accent-blue); font-size: 0.9rem;">{{ user.birthday_date or 'Not set' }}</td>
+                                <td>
+                                    <form action="{{ url_for('admin_update_scratch_reward') }}" method="POST" style="display: flex; gap: 0.3rem; align-items: center;">
+                                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="redirect_to" value="admin_panel">
+                                        <input type="text" name="scratch_reward" value="{{ user.scratch_reward or '🎉 Congratulations! You unlocked a special birthday surprise and gift from all of us! 🎁' }}" style="padding: 0.3rem 0.5rem; font-size: 0.78rem; width: 170px; border-radius: 6px; border: 1px solid rgba(255, 214, 77, 0.4); background: rgba(0,0,0,0.4); color: #fff;" title="Edit custom birthday surprise gift text for recipient">
+                                        <button type="submit" class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; border-radius: 6px; border-color: var(--accent-yellow); color: var(--accent-yellow);" title="Save Surprise Text">💾 Save</button>
+                                    </form>
+                                </td>
                                 <td style="text-align: center;">
                                     <form action="{{ url_for('admin_delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to revoke access and delete all memories for {{ user.display_name }}?');" style="display: inline;">
                                         <button type="submit" class="btn btn-secondary delete-user-btn">Revoke 🗑️</button>

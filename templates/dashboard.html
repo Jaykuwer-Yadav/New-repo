@@ -41,13 +41,7 @@
                     Email: <strong>{{ nearest_bday.email }}</strong> • Birthday: <span style="color: var(--accent-blue);">{{ nearest_bday.birthday_date }}</span>
                 </p>
 
-                <!-- Admin Countdown to Nearest Birthday -->
-                <div class="countdown-box nearest-counter" id="nearestCountdownBox" style="margin: 1.2rem 0; justify-content: flex-start;">
-                    <div class="timer-segment"><div class="timer-val" id="near-days">{{ '%02d' % nearest_bday.days_left if nearest_bday and nearest_bday.days_left is defined and nearest_bday.days_left > 0 else '00' }}</div><div class="timer-lbl">Days</div></div>
-                    <div class="timer-segment"><div class="timer-val" id="near-hours">{{ '%02d' % nearest_bday.hours_left if nearest_bday and nearest_bday.hours_left is defined else '00' }}</div><div class="timer-lbl">Hours</div></div>
-                    <div class="timer-segment"><div class="timer-val" id="near-minutes">00</div><div class="timer-lbl">Minutes</div></div>
-                    <div class="timer-segment"><div class="timer-val" id="near-seconds">00</div><div class="timer-lbl">Seconds</div></div>
-                </div>
+
 
                 <div class="nearest-actions" style="display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 1rem;">
                     <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.75rem 1.6rem; font-size: 0.95rem;">📸 Add Memories for {{ nearest_bday.display_name }}</a>

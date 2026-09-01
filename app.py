@@ -1111,3 +1111,25 @@ def unlock_note(note_id):
         return jsonify({"status": "error", "message": "Incorrect secret password/PIN."}), 400
 
 
+
+
+@app.route("/admin/update-scratch-reward", methods=["POST"])
+@admin_required
+def admin_update_scratch_reward():
+    target_user_id = request.form.get("user_id")
+    scratch_reward = request.form.get("scratch_reward", "").strip()
+    redirect_dest = request.form.get("redirect_to", "admin_panel")
+    
+    if not target_user_id or not scratch_reward:
+        flash("User selection and surprise gift message are required.", "error")
+        return redirect(url_for(redirect_dest))
+        
+    user = fs_get_doc("users", str(target_user_id))
+    if user:
+        user["scratch_reward"] = scratch_reward
+        fs_set_doc("users", str(target_user_id), user)
+        flash(f"Custom birthday surprise reward updated for {user.get('display_name', 'user')}!", "success")
+    else:
+        flash("User not found.", "error")
+        
+    return redirect(url_for(redirect_dest))
