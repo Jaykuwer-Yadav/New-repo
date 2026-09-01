@@ -910,7 +910,7 @@ input:focus, textarea:focus, select:focus {
 .memory-video {
     object-fit: contain;
     background: #000;
-    pointer-events: auto !important;
+    pointer-events: none !important;
 }
 
 .memory-card:hover .memory-img:not(.memory-video) {
@@ -1129,7 +1129,7 @@ input:focus, textarea:focus, select:focus {
     inset: 0;
     background: rgba(0,0,0,0);
     z-index: 5;
-    pointer-events: auto !important;
+    pointer-events: none !important;
 }
 
 /* ==========================================
