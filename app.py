@@ -502,10 +502,15 @@ def is_birthday_arrived():
         bdate = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M")
         now = datetime.now()
         
-        # If today is their birthday (same month and day) -> Arrived!
+        # 1. If TODAY is their birthday (same month and day) -> FULL 24-HOUR ACCESS!
         if now.month == bdate.month and now.day == bdate.day:
             return True
-        # Otherwise -> Locked until birthday!
+            
+        # 2. If the user's initial setup date has arrived/passed
+        target = bdate.replace(year=now.year)
+        if now >= target:
+            return True
+            
         return False
     except Exception as e:
         print(f"[Birthday Lock Check Error] {e}")
@@ -541,12 +546,22 @@ def get_next_annual_bday(bday_str):
         clean_str = bday_str.strip()[:16]
         dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M")
         
-        # Target same month & day in current year
+        # 1. If TODAY is the birthday date (same month & day) -> Celebrating TODAY!
+        if now.month == dt.month and now.day == dt.day:
+            return {
+                "target_str": now.strftime("%Y-%m-%dT23:59:59"),
+                "days_left": 0,
+                "hours_left": 0,
+                "diff_seconds": 0,
+                "is_today": True
+            }
+            
+        # 2. Otherwise calculate next upcoming birthday target
         target = dt.replace(year=now.year)
-        if target <= now:
+        if target < now:
             try:
                 target = target.replace(year=now.year + 1)
-            except ValueError: # Handle leap year Feb 29
+            except ValueError:
                 target = target.replace(year=now.year + 1, day=28)
         
         diff = target - now
@@ -554,7 +569,8 @@ def get_next_annual_bday(bday_str):
             "target_str": target.strftime("%Y-%m-%dT%H:%M"),
             "days_left": diff.days,
             "hours_left": int((diff.total_seconds() % 86400) // 3600),
-            "diff_seconds": diff.total_seconds()
+            "diff_seconds": max(0, diff.total_seconds()),
+            "is_today": False
         }
     except Exception as e:
         print(f"[Birthday Calc Error] {e}")
@@ -677,7 +693,14 @@ def logout():
 def timer():
     if not is_logged_in():
         return redirect(url_for("login"))
-    return render_template("timer.html")
+    user = db_get_user_by_id(session.get("user_id"))
+    bday_str = user.get("birthday_date") if user else session.get("birthday_date")
+    target_info = get_next_annual_bday(bday_str)
+    
+    bday_target = target_info.get("target_str") if target_info else ""
+    is_today = target_info.get("is_today", False) if target_info else False
+    
+    return render_template("timer.html", birthday_date=bday_target, is_today=is_today)
 
 @app.route("/cake")
 @birthday_required

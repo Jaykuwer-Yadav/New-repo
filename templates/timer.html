@@ -45,6 +45,7 @@ let targetTime = null;
 
 const isAdmin = {% if user_role == 'admin' %}true{% else %}false{% endif %};
 const dbBirthday = "{{ birthday_date }}";
+const isTodayBirthday = {% if is_today %}true{% else %}false{% endif %};
 
 if (isAdmin) {
     if (localStorage.getItem("timerTarget")) {
@@ -53,7 +54,9 @@ if (isAdmin) {
         if (picker) { picker.value = formatDateForInput(new Date(targetTime)); }
     } else { resetTo24h(); }
 } else {
-    if (dbBirthday) {
+    if (isTodayBirthday) {
+        targetTime = new Date().getTime() - 1000; // Complete immediately for birthday day!
+    } else if (dbBirthday) {
         targetTime = new Date(dbBirthday).getTime();
     } else {
         const fallback = new Date();
