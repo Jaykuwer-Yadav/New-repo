@@ -114,9 +114,11 @@
                 {% if note.is_locked and user_role != 'admin' %}
                 <div class="locked-note-body" id="locked-note-body-{{ note.id }}">
                     <p style="color: var(--accent-pink); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem;">🔒 This is a secret locked note.</p>
-                    <div style="display: flex; gap: 0.5rem; max-width: 340px;">
-                        <input type="password" id="note-pw-{{ note.id }}" placeholder="Enter secret password..." style="padding: 0.45rem 0.8rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; flex: 1;">
-                        <button type="button" onclick="unlockSecretNote('{{ note.id }}')" class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem; border-radius: 8px;">Unlock 🔑</button>
+                    <div style="display: flex; flex-direction: column; gap: 0.6rem; width: 100%; margin-top: 0.5rem;">
+                        <input type="password" id="note-pw-{{ note.id }}" placeholder="Enter secret password..." style="width: 100%; box-sizing: border-box; padding: 0.6rem 0.9rem; font-size: 0.9rem; border-radius: 10px; border: 1px solid rgba(255, 77, 141, 0.4); background: rgba(0,0,0,0.4); color: #fff;">
+                        <button type="button" onclick="unlockSecretNote('{{ note.id }}')" class="btn" style="width: 100%; padding: 0.55rem 1rem; font-size: 0.88rem; border-radius: 10px; font-weight: 600;">
+                            Unlock Secret Note 🔑
+                        </button>
                     </div>
                     <p id="note-err-{{ note.id }}" style="color: #ff4d4d; font-size: 0.8rem; margin-top: 0.4rem; display: none;"></p>
                 </div>
