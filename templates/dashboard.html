@@ -183,14 +183,7 @@
             "Wishing you a birthday filled with love, laughter, and cherished memories to last a lifetime."
         </p>
 
-        <!-- Countdown Box in Scrapbook -->
-        <div class="countdown-card" style="margin: 2rem 0 1rem;">
-            <h3 class="title-serif" style="font-size: 1.4rem; color: var(--accent-yellow); margin-bottom: 1rem;">
-                ⏳ Countdown to Your Big Day
-            </h3>
-            
-            <div class="countdown-box" id="dashboardCountdownBox">
-                <div class="timer-segment"><div class="timer-val" id="dash-days">{{ '%02d' % user_days_left if user_days_left is defined and user_days_left > 0 else '00' }}</div><div class="timer-lbl">Days</div></div>
+        
                 <div class="timer-segment"><div class="timer-val" id="dash-hours">{{ '%02d' % user_hours_left if user_hours_left is defined else '00' }}</div><div class="timer-lbl">Hours</div></div>
                 <div class="timer-segment"><div class="timer-val" id="dash-minutes">00</div><div class="timer-lbl">Minutes</div></div>
                 <div class="timer-segment"><div class="timer-val" id="dash-seconds">00</div><div class="timer-lbl">Seconds</div></div>
@@ -349,7 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
         function updateNearCounter() {
             const now = Date.now();
             const diff = nearTarget - now;
-            const daysEl = document.getElementById("near-days");
+            // timer removed
             const hoursEl = document.getElementById("near-hours");
             const minsEl = document.getElementById("near-minutes");
             const secsEl = document.getElementById("near-seconds");
@@ -388,7 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
         targetTime = fallback.getTime();
     }
     
-    const cdBox = document.getElementById("dashboardCountdownBox");
+    // timer removed
     const celebMsg = document.getElementById("dashCelebrationMsg");
     const daysEl = document.getElementById("dash-days");
     const hoursEl = document.getElementById("dash-hours");
