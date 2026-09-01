@@ -125,6 +125,12 @@ document.addEventListener("DOMContentLoaded", function() {
             </div>
         </div>
 
+        
+        <div class="form-group">
+            <label for="mem-album">Photo / Video Album Name (Optional)</label>
+            <input type="text" id="mem-album" name="album" placeholder="e.g. Summer Vacation 2026, Birthday Bash, Family Trip (Default: General Album)">
+        </div>
+
         <div class="form-group">
             <label for="mem-desc">Description / Heartfelt Message</label>
             <textarea id="mem-desc" name="description" rows="3" placeholder="Write a heartwarming message or memory story..."></textarea>
@@ -182,6 +188,20 @@ document.addEventListener("DOMContentLoaded", function() {
 <!-- Memories Gallery -->
 <div class="glass-panel">
     <h1 class="gradient-text title-serif" style="font-size: 2.8rem; margin-bottom: 0.5rem; text-align: center;">Memory Chest 💎</h1>
+
+    {% if albums and albums|length > 0 %}
+    <div class="album-filter-tabs" style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem;">
+        <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-right: 0.2rem;">Album Vault:</span>
+        <a href="{{ url_for('memories', user_id=selected_user_id) }}" class="btn btn-secondary {% if not selected_album or selected_album == 'all' %}active-album-tab{% endif %}" style="padding: 0.3rem 0.75rem; font-size: 0.8rem; border-radius: 999px; {% if not selected_album or selected_album == 'all' %}border-color: var(--accent-blue); color: var(--accent-blue); background: rgba(77, 240, 255, 0.15);{% endif %}">
+            📁 All Albums
+        </a>
+        {% for alb in albums %}
+        <a href="{{ url_for('memories', user_id=selected_user_id, album=alb) }}" class="btn btn-secondary {% if selected_album == alb %}active-album-tab{% endif %}" style="padding: 0.3rem 0.75rem; font-size: 0.8rem; border-radius: 999px; {% if selected_album == alb %}border-color: var(--accent-yellow); color: var(--accent-yellow); background: rgba(255, 214, 77, 0.15);{% endif %}">
+            📖 {{ alb }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
         <p style="text-align: center; margin-bottom: 1.5rem; color: var(--text-muted);">A secure vault of precious times, moments, and videos.</p>
 
     {% if user_role == 'admin' and users %}
@@ -233,6 +253,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         <div class="memory-info">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
                                 <h3 class="memory-title">{{ memory.title }}</h3>
+                                <span class="badge-pill" style="font-size: 0.72rem; padding: 2px 8px; margin-top: 4px; display: inline-block; background: rgba(77, 240, 255, 0.12); color: var(--accent-blue); border-color: rgba(77, 240, 255, 0.4);">📖 {{ memory.album or "General Album" }}</span>
                                 {% if memory.is_video %}
                                 <span class="media-type-badge">🎥 Video</span>
                                 {% else %}
@@ -269,6 +290,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         <div class="memory-info">
                             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
                                 <h3 class="memory-title">{{ memory.title }}</h3>
+                                <span class="badge-pill" style="font-size: 0.72rem; padding: 2px 8px; margin-top: 4px; display: inline-block; background: rgba(77, 240, 255, 0.12); color: var(--accent-blue); border-color: rgba(77, 240, 255, 0.4);">📖 {{ memory.album or "General Album" }}</span>
                                 {% if memory.is_video %}
                                 <span class="media-type-badge">🎥 Video</span>
                                 {% else %}

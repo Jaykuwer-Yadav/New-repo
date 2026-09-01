@@ -413,18 +413,33 @@ def db_get_memories(user_id=None):
             m["recipient_email"] = u.get("email")
     return sorted(memories, key=lambda x: str(x.get("created_at", "")), reverse=True)
 
+
+def db_get_albums(user_id=None):
+    memories = db_get_memories(user_id)
+    albums = set()
+    for m in memories:
+        alb = m.get("album")
+        if alb:
+            albums.add(alb)
+        else:
+            albums.add("General Album")
+    return sorted(list(albums))
+
+
 def db_get_memory_by_id(memory_id):
     return fs_get_doc("memories", str(memory_id))
 
-def db_add_memory(user_id, title, description, media_path, is_video=0, is_locked=0, lock_password=""):
+def db_add_memory(user_id, title, description, media_path, is_video=0, is_locked=0, lock_password="", album="General Album"):
     mem_id = str(uuid.uuid4())[:8]
     lock_hash = generate_password_hash(lock_password) if (is_locked and lock_password) else None
+    clean_album = album.strip() if album and album.strip() else "General Album"
     fs_set_doc("memories", mem_id, {
         "id": mem_id,
         "user_id": str(user_id),
         "title": title,
         "description": description,
         "media_path": media_path,
+        "album": clean_album,
         "is_video": int(is_video),
         "is_locked": int(is_locked),
         "lock_password_hash": lock_hash,
@@ -680,6 +695,7 @@ def notes():
 @app.route("/memories")
 @birthday_required
 def memories():
+    selected_album = request.args.get("album")
     if session.get("user_role") == "admin":
         selected_user_id = request.args.get("user_id")
         if selected_user_id:
@@ -687,15 +703,20 @@ def memories():
         else:
             memories_list = db_get_memories()
         users_list = db_get_all_standard_users()
-        return render_template("memories.html", memories=memories_list, users=users_list, selected_user_id=selected_user_id)
+        albums_list = db_get_albums()
+        
+        if selected_album and selected_album != "all":
+            memories_list = [m for m in memories_list if (m.get("album") or "General Album") == selected_album]
+            
+        return render_template("memories.html", memories=memories_list, users=users_list, selected_user_id=selected_user_id, albums=albums_list, selected_album=selected_album)
     else:
-        # Standard user ONLY sees their own user_id memories from Firestore
         memories_list = db_get_memories(session["user_id"])
-        return render_template("memories.html", memories=memories_list)
-
-# ----------------------------------------------------
-# 6. ACTION & API ENDPOINTS
-# ----------------------------------------------------
+        albums_list = db_get_albums(session["user_id"])
+        
+        if selected_album and selected_album != "all":
+            memories_list = [m for m in memories_list if (m.get("album") or "General Album") == selected_album]
+            
+        return render_template("memories.html", memories=memories_list, albums=albums_list, selected_album=selected_album)
 
 @app.route("/api/upload-hero-photo", methods=["POST"])
 @admin_required
@@ -778,6 +799,7 @@ def upload_memory():
         
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
+    album = request.form.get("album", "General Album").strip() or "General Album"
     media_type = request.form.get("media_type", "auto")
     is_locked = 1 if request.form.get("is_locked") == "on" else 0
     lock_password = request.form.get("lock_password", "")
@@ -809,7 +831,6 @@ def upload_memory():
         else:
             is_vid = 1 if filename_lower.endswith(video_exts) else 0
 
-        # Generate permanent Data URI for Firestore cloud database
         data_uri = file_to_data_uri(file)
         item_title = title if len(valid_files) == 1 else f"{title} ({idx})"
 
@@ -820,11 +841,12 @@ def upload_memory():
             media_path=data_uri,
             is_video=is_vid,
             is_locked=is_locked,
-            lock_password=lock_password
+            lock_password=lock_password,
+            album=album
         )
         uploaded_count += 1
 
-    flash(f"Successfully uploaded {uploaded_count} permanent memory item(s) to {recipient_name}'s Memory Chest!", "success")
+    flash(f"Successfully uploaded {uploaded_count} memory item(s) to {recipient_name}'s '{album}' Album!", "success")
     return redirect(url_for("memories"))
 
 
