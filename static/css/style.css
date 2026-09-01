@@ -2063,3 +2063,14 @@ html, body {
         justify-content: center !important;
     }
 }
+
+
+/* Universal Image Pointer for Full-Size Lightbox View */
+img:not(#lightboxImg):not(.no-lightbox) {
+    cursor: pointer !important;
+    transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+img:not(#lightboxImg):not(.no-lightbox):hover {
+    filter: brightness(1.05);
+}

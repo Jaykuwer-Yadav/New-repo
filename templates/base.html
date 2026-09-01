@@ -77,7 +77,18 @@
     </main>
 
     <!-- Canvas Confetti CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js">
+// Universal Click Listener: Every photo on every page can be clicked to view full-size!
+document.addEventListener("click", function(e) {
+    if (e.target.tagName === "IMG" && e.target.id !== "lightboxImg" && !e.target.classList.contains("no-lightbox")) {
+        const src = e.target.src;
+        if (src && !src.includes("data:image/svg+xml")) {
+            const caption = e.target.getAttribute("alt") || e.target.getAttribute("title") || "Full Size View";
+            openImageLightbox(src, caption);
+        }
+    }
+});
+</script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block extra_js %}{% endblock %}
