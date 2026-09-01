@@ -157,7 +157,7 @@
                 </form>
                 {% else %}
                 <!-- Standard User Read-Only Photo Frame (No Upload / Remove Access) -->
-                <div class="polaroid-photo-frame" style="cursor: default; display: block;">
+                <div class="polaroid-photo-frame" style="cursor: pointer; display: block;" onclick="if(event.target.tagName==='IMG') openImageLightbox(event.target.src, '{{ display_name }}')" title="Click photo to view full size">
                     {% if user_data and user_data.profile_pic %}
                     <img src="{{ user_data.profile_pic }}" alt="{{ display_name }}" class="hero-portrait-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
                     {% elif recent_memories and recent_memories|length > 0 %}

@@ -259,7 +259,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             {% if memory.is_video %}
                             <video src="{{ memory.media_path }}" controls playsinline preload="metadata" class="memory-img memory-video"></video>
                             {% else %}
-                            <img src="{{ memory.media_path }}" alt="{{ memory.title }}" class="memory-img" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
+                            <img src="{{ memory.media_path }}" alt="{{ memory.title }}" class="memory-img" style="cursor: pointer;" onclick="openImageLightbox('{{ memory.media_path }}', '{{ memory.title }}')" title="Click to view full image" onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1513151233558-d860c5398176?w=600&auto=format&fit=crop';">
                             {% endif %}
                             
                             {% if user_role != 'admin' %}
