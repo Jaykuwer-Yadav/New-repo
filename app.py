@@ -765,11 +765,13 @@ def upload_hero_photo():
         flash("No image file selected.", "error")
         return redirect(url_for(redirect_dest))
         
-    # Generate permanent Data URI for Firestore cloud database
     data_uri = file_to_data_uri(file)
     
-    # Save profile_pic permanently in Cloud Firestore
-    fs_set_doc("users", str(target_user_id), {"profile_pic": data_uri})
+    # Safely preserve existing user properties (email, role, birthday_date, display_name)
+    target_user = fs_get_doc("users", str(target_user_id)) or {"id": str(target_user_id)}
+    target_user["profile_pic"] = data_uri
+    
+    fs_set_doc("users", str(target_user_id), target_user)
     
     flash("Hero photo updated permanently!", "success")
     return redirect(url_for(redirect_dest))
