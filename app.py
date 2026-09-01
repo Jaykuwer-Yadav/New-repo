@@ -831,14 +831,24 @@ def upload_memory():
         else:
             is_vid = 1 if filename_lower.endswith(video_exts) else 0
 
-        data_uri = file_to_data_uri(file)
+        if is_vid == 1:
+            # Videos are saved to disk storage so Firestore document is tiny (<1KB) & avoids 1MB Firestore limit
+            ext = os.path.splitext(file.filename)[1].lower() or ".mp4"
+            unique_name = f"vid_{target_user_id}_{int(datetime.now().timestamp())}_{idx}{ext}"
+            save_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_name)
+            file.save(save_path)
+            media_path = f"/static/uploads/{unique_name}"
+        else:
+            # Photos are compressed and saved as permanent Base64 Data URIs
+            media_path = file_to_data_uri(file)
+
         item_title = title if len(valid_files) == 1 else f"{title} ({idx})"
 
         db_add_memory(
             user_id=target_user_id,
             title=item_title,
             description=description,
-            media_path=data_uri,
+            media_path=media_path,
             is_video=is_vid,
             is_locked=is_locked,
             lock_password=lock_password,
