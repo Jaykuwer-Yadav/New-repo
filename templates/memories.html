@@ -1,6 +1,97 @@
 {% extends "base.html" %}
 
-{% block title %}Memory Chest - Birthday Memories{% endblock %}
+{% block title %}Memory Chest - Birthday Memories
+<!-- Fast Upload Loading Overlay -->
+<div id="fastUploadOverlay" style="display: none; position: fixed; inset: 0; background: rgba(10, 7, 24, 0.88); backdrop-filter: blur(12px); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; color: #fff; text-align: center; padding: 2rem;">
+    <div style="width: 54px; height: 54px; border: 4px solid rgba(255, 77, 141, 0.2); border-top-color: var(--accent); border-radius: 50%; animation: spinOverlay 0.8s linear infinite; margin-bottom: 1.5rem;"></div>
+    <h3 class="gradient-text title-serif" style="font-size: 1.8rem; margin-bottom: 0.5rem;" id="uploadOverlayTitle">Optimizing & Uploading Memories...</h3>
+    <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 400px;" id="uploadOverlaySub">Compressing media for 10x faster transfer speed. Please wait...</p>
+</div>
+
+<style>
+@keyframes spinOverlay {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const uploadForm = document.querySelector(".upload-memory-form");
+    if (!uploadForm) return;
+
+    uploadForm.addEventListener("submit", async function(e) {
+        const fileInput = document.getElementById("mem-media");
+        const overlay = document.getElementById("fastUploadOverlay");
+        
+        if (fileInput && fileInput.files.length > 0) {
+            e.preventDefault(); // Intercept submit for fast client compression
+            
+            if (overlay) overlay.style.display = "flex";
+
+            const dt = new DataTransfer();
+            const files = Array.from(fileInput.files);
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith("image/")) {
+                    try {
+                        const compFile = await compressFileInBrowser(file);
+                        dt.items.add(compFile);
+                    } catch (err) {
+                        dt.items.add(file);
+                    }
+                } else {
+                    dt.items.add(file);
+                }
+            }
+
+            fileInput.files = dt.files;
+            uploadForm.submit(); // Submit lightweight payload instantly
+        }
+    });
+
+    function compressFileInBrowser(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement("canvas");
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 1200;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(function(blob) {
+                        if (!blob) { resolve(file); return; }
+                        const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                            type: "image/jpeg",
+                            lastModified: Date.now()
+                        });
+                        resolve(newFile);
+                    }, "image/jpeg", 0.78);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+});
+</script>
+
+{% endblock %}
 
 {% block content %}
 
@@ -202,6 +293,97 @@
         </div>
     {% endif %}
 </div>
+
+<!-- Fast Upload Loading Overlay -->
+<div id="fastUploadOverlay" style="display: none; position: fixed; inset: 0; background: rgba(10, 7, 24, 0.88); backdrop-filter: blur(12px); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; color: #fff; text-align: center; padding: 2rem;">
+    <div style="width: 54px; height: 54px; border: 4px solid rgba(255, 77, 141, 0.2); border-top-color: var(--accent); border-radius: 50%; animation: spinOverlay 0.8s linear infinite; margin-bottom: 1.5rem;"></div>
+    <h3 class="gradient-text title-serif" style="font-size: 1.8rem; margin-bottom: 0.5rem;" id="uploadOverlayTitle">Optimizing & Uploading Memories...</h3>
+    <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 400px;" id="uploadOverlaySub">Compressing media for 10x faster transfer speed. Please wait...</p>
+</div>
+
+<style>
+@keyframes spinOverlay {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const uploadForm = document.querySelector(".upload-memory-form");
+    if (!uploadForm) return;
+
+    uploadForm.addEventListener("submit", async function(e) {
+        const fileInput = document.getElementById("mem-media");
+        const overlay = document.getElementById("fastUploadOverlay");
+        
+        if (fileInput && fileInput.files.length > 0) {
+            e.preventDefault(); // Intercept submit for fast client compression
+            
+            if (overlay) overlay.style.display = "flex";
+
+            const dt = new DataTransfer();
+            const files = Array.from(fileInput.files);
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith("image/")) {
+                    try {
+                        const compFile = await compressFileInBrowser(file);
+                        dt.items.add(compFile);
+                    } catch (err) {
+                        dt.items.add(file);
+                    }
+                } else {
+                    dt.items.add(file);
+                }
+            }
+
+            fileInput.files = dt.files;
+            uploadForm.submit(); // Submit lightweight payload instantly
+        }
+    });
+
+    function compressFileInBrowser(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement("canvas");
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 1200;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(function(blob) {
+                        if (!blob) { resolve(file); return; }
+                        const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                            type: "image/jpeg",
+                            lastModified: Date.now()
+                        });
+                        resolve(newFile);
+                    }, "image/jpeg", 0.78);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+});
+</script>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -289,4 +471,95 @@ async function unlockCard(memoryId) {
     }
 }
 </script>
+
+<!-- Fast Upload Loading Overlay -->
+<div id="fastUploadOverlay" style="display: none; position: fixed; inset: 0; background: rgba(10, 7, 24, 0.88); backdrop-filter: blur(12px); z-index: 9999; flex-direction: column; align-items: center; justify-content: center; color: #fff; text-align: center; padding: 2rem;">
+    <div style="width: 54px; height: 54px; border: 4px solid rgba(255, 77, 141, 0.2); border-top-color: var(--accent); border-radius: 50%; animation: spinOverlay 0.8s linear infinite; margin-bottom: 1.5rem;"></div>
+    <h3 class="gradient-text title-serif" style="font-size: 1.8rem; margin-bottom: 0.5rem;" id="uploadOverlayTitle">Optimizing & Uploading Memories...</h3>
+    <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 400px;" id="uploadOverlaySub">Compressing media for 10x faster transfer speed. Please wait...</p>
+</div>
+
+<style>
+@keyframes spinOverlay {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const uploadForm = document.querySelector(".upload-memory-form");
+    if (!uploadForm) return;
+
+    uploadForm.addEventListener("submit", async function(e) {
+        const fileInput = document.getElementById("mem-media");
+        const overlay = document.getElementById("fastUploadOverlay");
+        
+        if (fileInput && fileInput.files.length > 0) {
+            e.preventDefault(); // Intercept submit for fast client compression
+            
+            if (overlay) overlay.style.display = "flex";
+
+            const dt = new DataTransfer();
+            const files = Array.from(fileInput.files);
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (file.type.startsWith("image/")) {
+                    try {
+                        const compFile = await compressFileInBrowser(file);
+                        dt.items.add(compFile);
+                    } catch (err) {
+                        dt.items.add(file);
+                    }
+                } else {
+                    dt.items.add(file);
+                }
+            }
+
+            fileInput.files = dt.files;
+            uploadForm.submit(); // Submit lightweight payload instantly
+        }
+    });
+
+    function compressFileInBrowser(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement("canvas");
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 1200;
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(function(blob) {
+                        if (!blob) { resolve(file); return; }
+                        const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+                            type: "image/jpeg",
+                            lastModified: Date.now()
+                        });
+                        resolve(newFile);
+                    }, "image/jpeg", 0.78);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+});
+</script>
+
 {% endblock %}
