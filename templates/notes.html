@@ -58,6 +58,20 @@
             <textarea id="note-msg" name="message" rows="4" placeholder="Write your heartfelt note, wishes, or unforgettable stories here..." required></textarea>
         </div>
 
+                <div class="form-group lock-toggle-row" style="margin-top: 1rem;">
+            <input type="checkbox" id="note-locked" name="is_locked" onchange="document.getElementById('noteLockContainer').style.display = this.checked ? 'block' : 'none';">
+            <label for="note-locked" style="margin-bottom: 0; cursor: pointer; font-weight: 600; color: var(--accent-pink);">
+                🔒 Lock this note with a secret PIN / password
+            </label>
+        </div>
+
+        <div class="form-group" id="noteLockContainer" style="display: none; animation: fadeIn 0.4s ease-in-out; margin-top: 0.75rem;">
+            <label for="note-lock-password">Secret Note Unlock Password</label>
+            <div class="input-wrapper">
+                <input type="password" id="note-lock-password" name="lock_password" placeholder="Enter secret password to lock this letter...">
+            </div>
+        </div>
+
         <button type="submit" class="btn" style="margin-top: 1rem;">Send Birthday Note 💌</button>
     </form>
 </div>
@@ -82,11 +96,11 @@
             {% endif %}
         </div>
     {% else %}
-        <div class="notes-grid">
+                <div class="notes-grid">
             {% for note in notes %}
-            <div class="note-card glass-panel">
+            <div class="note-card glass-panel" id="note-card-{{ note.id }}">
                 <div class="note-card-header">
-                    <span class="note-icon-badge">{{ note.icon or '💌' }}</span>
+                    <span class="note-icon-badge">{% if note.is_locked %}🔒{% else %}{{ note.icon or '💌' }}{% endif %}</span>
                     <div class="note-meta">
                         <span class="note-sender">From: {{ note.sender_name }}</span>
                         {% if user_role == 'admin' and note.recipient_name %}
@@ -96,12 +110,25 @@
                 </div>
 
                 <h3 class="note-title">{{ note.title }}</h3>
-                <p class="note-message">{{ note.message }}</p>
+                
+                {% if note.is_locked and user_role != 'admin' %}
+                <div class="locked-note-body" id="locked-note-body-{{ note.id }}">
+                    <p style="color: var(--accent-pink); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem;">🔒 This is a secret locked note.</p>
+                    <div style="display: flex; gap: 0.5rem; max-width: 340px;">
+                        <input type="password" id="note-pw-{{ note.id }}" placeholder="Enter secret password..." style="padding: 0.45rem 0.8rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: #fff; flex: 1;">
+                        <button type="button" onclick="unlockSecretNote('{{ note.id }}')" class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.82rem; border-radius: 8px;">Unlock 🔑</button>
+                    </div>
+                    <p id="note-err-{{ note.id }}" style="color: #ff4d4d; font-size: 0.8rem; margin-top: 0.4rem; display: none;"></p>
+                </div>
+                <p class="note-message" id="unlocked-msg-{{ note.id }}" style="display: none; white-space: pre-wrap;"></p>
+                {% else %}
+                <p class="note-message" style="white-space: pre-wrap;">{{ note.message }}</p>
+                {% endif %}
 
                 <div class="note-card-footer">
                     <span class="note-date">🗓️ {{ note.created_at[:10] if note.created_at else 'Special Day' }}</span>
                     {% if user_role == 'admin' %}
-                    <form action="{{ url_for('delete_note', note_id=note.id) }}" method="POST" onsubmit="return confirm('Delete this note?');" style="display: inline;">
+                    <form action="{{ url_for('delete_note', note_id=note.id) }}" method="POST" onsubmit="return confirm('Delete this note permanently?');" style="display: inline;">
                         <button type="submit" class="delete-note-btn" title="Delete Note">🗑️</button>
                     </form>
                     {% endif %}
@@ -109,6 +136,42 @@
             </div>
             {% endfor %}
         </div>
+
+<script>
+async function unlockSecretNote(noteId) {
+    const pwInput = document.getElementById('note-pw-' + noteId);
+    const errEl = document.getElementById('note-err-' + noteId);
+    const lockedBody = document.getElementById('locked-note-body-' + noteId);
+    const msgEl = document.getElementById('unlocked-msg-' + noteId);
+
+    if (!pwInput || !pwInput.value) {
+        if (errEl) { errEl.textContent = 'Please enter password.'; errEl.style.display = 'block'; }
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/unlock-note/' + noteId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pwInput.value })
+        });
+        const data = await resp.json();
+
+        if (resp.ok && data.status === 'success') {
+            if (lockedBody) lockedBody.style.display = 'none';
+            if (msgEl) {
+                msgEl.textContent = data.message;
+                msgEl.style.display = 'block';
+                msgEl.style.animation = 'fadeIn 0.5s ease-in-out';
+            }
+        } else {
+            if (errEl) { errEl.textContent = data.message || 'Incorrect password.'; errEl.style.display = 'block'; }
+        }
+    } catch (e) {
+        if (errEl) { errEl.textContent = 'Error unlocking note.'; errEl.style.display = 'block'; }
+    }
+}
+</script>
     {% endif %}
 </div>
 {% endblock %}

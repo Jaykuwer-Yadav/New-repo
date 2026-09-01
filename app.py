@@ -385,15 +385,18 @@ def db_get_notes(user_id=None):
             n["recipient_email"] = u.get("email")
     return sorted(notes, key=lambda x: str(x.get("created_at", "")), reverse=True)
 
-def db_add_note(user_id, sender_name, title, message, icon="ðŸ’Œ"):
+def db_add_note(user_id, sender_name, title, message, icon="💌", is_locked=0, lock_password=""):
     note_id = str(uuid.uuid4())[:8]
+    lock_hash = generate_password_hash(lock_password) if (is_locked and lock_password) else None
     fs_set_doc("notes", note_id, {
         "id": note_id,
         "user_id": str(user_id),
         "sender_name": sender_name,
         "title": title,
         "message": message,
-        "icon": icon,
+        "icon": icon or "💌",
+        "is_locked": int(is_locked),
+        "lock_password_hash": lock_hash,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
     })
     return note_id
@@ -751,18 +754,28 @@ def upload_hero_photo():
 @app.route("/api/add-note", methods=["POST"])
 @admin_required
 def add_note():
-    sender_name = request.form.get("sender_name", "").strip() or session.get("display_name", "A Friend")
+    sender_name = request.form.get("sender_name", "").strip() or session.get("display_name", "Admin")
     title = request.form.get("title", "").strip()
     message = request.form.get("message", "").strip()
-    icon = request.form.get("icon", "ðŸ’Œ")
+    icon = request.form.get("icon", "💌")
     target_user_id = request.form.get("user_id")
+    is_locked = 1 if request.form.get("is_locked") == "on" else 0
+    lock_password = request.form.get("lock_password", "").strip()
         
     if not title or not message or not target_user_id:
-        flash("Title, recipient, and message are required for the note.", "error")
+        flash("Title, recipient, and message content are required.", "error")
         return redirect(url_for("notes"))
         
-    db_add_note(target_user_id, sender_name, title, message, icon)
-    flash("Birthday Note & Letter added successfully! ðŸ’Œ", "success")
+    db_add_note(target_user_id, sender_name, title, message, icon, is_locked=is_locked, lock_password=lock_password)
+    
+    target_user = db_get_user_by_id(target_user_id)
+    recipient_name = target_user.get("display_name", "User") if target_user else "User"
+    
+    if is_locked:
+        flash(f"🔒 Secret locked note created successfully for {recipient_name}!", "success")
+    else:
+        flash(f"💌 Birthday note sent successfully to {recipient_name}!", "success")
+        
     return redirect(url_for("notes"))
 
 @app.route("/api/delete-note/<string:note_id>", methods=["POST"])
@@ -1051,3 +1064,25 @@ def internal_server_error(error):
     print(f"[500 Server Error Catch] {error}")
     flash("A temporary server glitch occurred. Please refresh the page.", "error")
     return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/api/unlock-note/<note_id>", methods=["POST"])
+@birthday_required
+def unlock_note(note_id):
+    note = fs_get_doc("notes", str(note_id))
+    if not note:
+        return jsonify({"status": "error", "message": "Note not found."}), 404
+        
+    data = request.get_json(silent=True) or request.form
+    password = data.get("password", "").strip()
+    
+    if session.get("user_role") == "admin":
+        return jsonify({"status": "success", "message": note.get("message", "")})
+        
+    lock_hash = note.get("lock_password_hash")
+    if lock_hash and check_password_hash(lock_hash, password):
+        return jsonify({"status": "success", "message": note.get("message", "")})
+    else:
+        return jsonify({"status": "error", "message": "Incorrect secret password/PIN."}), 400
+
+
