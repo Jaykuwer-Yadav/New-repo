@@ -1012,3 +1012,10 @@ if __name__ == "__main__":
 def request_entity_too_large(error):
     flash("Upload failed: Total file size exceeds the maximum limit (512MB). Please upload fewer files at once or compress large videos.", "error")
     return redirect(request.referrer or url_for("memories"))
+
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    print(f"[500 Server Error Catch] {error}")
+    flash("A temporary server glitch occurred. Please refresh the page.", "error")
+    return redirect(request.referrer or url_for("index"))
