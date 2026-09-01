@@ -183,22 +183,6 @@
             "Wishing you a birthday filled with love, laughter, and cherished memories to last a lifetime."
         </p>
 
-        
-                <div class="timer-segment"><div class="timer-val" id="dash-hours">{{ '%02d' % user_hours_left if user_hours_left is defined else '00' }}</div><div class="timer-lbl">Hours</div></div>
-                <div class="timer-segment"><div class="timer-val" id="dash-minutes">00</div><div class="timer-lbl">Minutes</div></div>
-                <div class="timer-segment"><div class="timer-val" id="dash-seconds">00</div><div class="timer-lbl">Seconds</div></div>
-            </div>
-
-            <div id="dashCelebrationMsg" style="display: none; animation: fadeIn 1s ease-in-out; padding: 1.5rem 0;">
-                <h2 class="gradient-text title-serif" style="font-size: 2.6rem; margin-bottom: 0.5rem;">🎂 IT'S YOUR BIRTHDAY! 🎂</h2>
-                <p style="font-size: 1.2rem; margin-bottom: 1.5rem; color: var(--text-main);">The countdown is complete! Today is all about you!</p>
-                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                    <a href="{{ url_for('cake') }}" class="btn" style="width: auto; padding: 0.9rem 2.5rem;">Blow Out Candles! 🎂</a>
-                    <a href="{{ url_for('memories') }}" class="btn" style="width: auto; padding: 0.9rem 2.5rem; background: linear-gradient(135deg, var(--accent-blue), #9d4edd);">Open Memory Chest 📸</a>
-                </div>
-            </div>
-        </div>
-
     </div>
 
     <!-- ==========================================
@@ -384,7 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // timer removed
     const celebMsg = document.getElementById("dashCelebrationMsg");
     const daysEl = document.getElementById("dash-days");
-    const hoursEl = document.getElementById("dash-hours");
+    // removed
     const minsEl = document.getElementById("dash-minutes");
     const secsEl = document.getElementById("dash-seconds");
     
