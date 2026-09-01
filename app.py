@@ -1,20 +1,40 @@
 
 import base64
+import io
+try:
+    from PIL import Image
+    HAS_PILLOW = True
+except ImportError:
+    HAS_PILLOW = False
 
 def file_to_data_uri(file_storage):
     file_storage.seek(0)
     file_bytes = file_storage.read()
-    file_storage.seek(0) # reset for disk save if needed
+    file_storage.seek(0)
     
     filename = file_storage.filename.lower()
+    
+    # Compress images using Pillow to ensure payloads fit under Firestore 1MB document limit
+    if HAS_PILLOW and any(filename.endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".heic"]):
+        try:
+            img = Image.open(io.BytesIO(file_bytes))
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            img.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+            out_buf = io.BytesIO()
+            img.save(out_buf, format="JPEG", quality=80, optimize=True)
+            comp_bytes = out_buf.getvalue()
+            b64_str = base64.b64encode(comp_bytes).decode("utf-8")
+            return f"data:image/jpeg;base64,{b64_str}"
+        except Exception as e:
+            print(f"[Image Compression Warning] {e}")
+
     if filename.endswith(".png"):
         mime = "image/png"
     elif filename.endswith(".gif"):
         mime = "image/gif"
     elif filename.endswith(".webp"):
         mime = "image/webp"
-    elif filename.endswith(".svg"):
-        mime = "image/svg+xml"
     elif filename.endswith(".mp4"):
         mime = "video/mp4"
     elif filename.endswith(".webm"):
