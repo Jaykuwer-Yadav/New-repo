@@ -722,7 +722,7 @@ def upload_hero_photo():
     data_uri = file_to_data_uri(file)
     
     # Save profile_pic permanently in Cloud Firestore
-    fs_update_doc("users", str(target_user_id), {"profile_pic": data_uri})
+    fs_set_doc("users", str(target_user_id), {"profile_pic": data_uri})
     
     flash("Hero photo updated permanently!", "success")
     return redirect(url_for(redirect_dest))
